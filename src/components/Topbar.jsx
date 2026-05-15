@@ -1,11 +1,16 @@
 import React from 'react';
 import { Bell, Search, Menu } from 'lucide-react';
 
-const Topbar = () => {
+const Topbar = ({ onMenuClick }) => {
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 lg:px-10">
+    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-10">
       <div className="flex items-center">
-        <button className="md:hidden mr-4 text-gray-500 hover:text-gray-700">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="md:hidden mr-3 text-gray-500 hover:text-gray-700 p-2 -ml-2 rounded-lg hover:bg-gray-50"
+          aria-label="Open menu"
+        >
           <Menu className="w-6 h-6" />
         </button>
         <div className="relative hidden sm:block">

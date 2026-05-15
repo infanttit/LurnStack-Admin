@@ -16,9 +16,9 @@ const Dashboard = () => {
         <p className="text-gray-500 mt-1">Welcome back! Here's what's happening today.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
         {statCards.map((stat, index) => (
-          <div key={index} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 flex items-center space-x-4">
+          <div key={index} className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 flex items-center space-x-4">
             <div className={`p-4 rounded-lg text-white ${stat.color}`}>
               <stat.icon className="w-6 h-6" />
             </div>
@@ -30,9 +30,9 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Attendance Overview Placeholder */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Attendance Overview</h2>
           <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
             <p className="text-gray-400">Chart will be rendered here</p>
@@ -40,7 +40,7 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions / Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
           <div className="space-y-4">
             {[1, 2, 3].map((item) => (
