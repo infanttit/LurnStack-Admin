@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const DEFAULT_BASE_URL = 'https://lurnstackbackend-production.up.railway.app';
+const DEFAULT_BASE_URL = 'https://api.lurnstack.com';
 
 export const apiBaseURL = process.env.REACT_APP_API_BASE_URL || DEFAULT_BASE_URL;
 
@@ -8,21 +8,9 @@ export const authTokenStorage = {
   key: 'lurnstack_admin_token',
   get() {
     try {
-      const fromStorage = localStorage.getItem(this.key) || '';
-      if (fromStorage) return fromStorage;
-      const fromEnv =
-        process.env.REACT_APP_ADMIN_BEARER_TOKEN ||
-        process.env.REACT_APP_API_BEARER_TOKEN ||
-        process.env.REACT_APP_API_TOKEN ||
-        '';
-      return fromEnv || '';
+      return localStorage.getItem(this.key) || '';
     } catch {
-      return (
-        process.env.REACT_APP_ADMIN_BEARER_TOKEN ||
-        process.env.REACT_APP_API_BEARER_TOKEN ||
-        process.env.REACT_APP_API_TOKEN ||
-        ''
-      );
+      return '';
     }
   },
   set(token) {
@@ -78,14 +66,33 @@ export const axiosClient = axios.create({
   headers: {},
 });
 
+const AUTH_FREE_PATHS = [
+  process.env.REACT_APP_ADMIN_REGISTER_PATH || '/api/admin/register',
+  process.env.REACT_APP_ADMIN_LOGIN_PATH || '/api/admin/login',
+];
+
+const isSameApiPath = (requestUrl, apiPath) => {
+  const requestPath = String(requestUrl || '').split('?')[0].replace(/\/+$/, '');
+  const cleanApiPath = String(apiPath || '').split('?')[0].replace(/\/+$/, '');
+  return requestPath === cleanApiPath;
+};
+
 axiosClient.interceptors.request.use((config) => {
   const url = String(config?.url || '');
+  const isAuthFreeRequest = AUTH_FREE_PATHS.some((path) => isSameApiPath(url, path));
   const isStudentRequest = url.includes('/api/student/');
   const studentToken = isStudentRequest ? studentTokenStorage.get() : '';
-  const token = isStudentRequest ? (studentToken || authTokenStorage.get()) : authTokenStorage.get();
+  const token = isAuthFreeRequest
+    ? ''
+    : isStudentRequest
+      ? (studentToken || authTokenStorage.get())
+      : authTokenStorage.get();
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
+  } else if (config.headers) {
+    delete config.headers.Authorization;
+    delete config.headers.authorization;
   }
 
   const isFormData =

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { loginSuccess } from '../store/slices/authSlice';
+import { loginSuccess, logout } from '../store/slices/authSlice';
 import { adminLoginApi, adminRegisterApi, adminMeApi } from '../api/adminAuth';
 import { authTokenStorage, getApiErrorMessage } from '../api/axiosClient';
 
@@ -15,6 +15,21 @@ const getUserFromLoginResponse = (json, emailFallback) => {
   const admin = json?.data?.admin || json?.admin;
   if (admin && typeof admin === 'object') return admin;
   return { role: 'admin', email: emailFallback };
+};
+
+const buildAuthPayload = ({ fullName, email, password }) => {
+  const cleanName = String(fullName || '').trim();
+  const cleanEmail = String(email || '').trim();
+
+  return {
+    FULL_NAME: cleanName,
+    EMAIL_ADDRESS: cleanEmail,
+    PASSWORD: password,
+    fullName: cleanName,
+    name: cleanName,
+    email: cleanEmail,
+    password,
+  };
 };
 
 const Login = () => {
@@ -63,12 +78,9 @@ const Login = () => {
     setSuccess('');
     try {
       if (mode === 'register') {
-        const json = await adminRegisterApi({
-          FULL_NAME: form.fullName.trim(),
-          EMAIL_ADDRESS: form.email.trim(),
-          PASSWORD: form.password,
-        });
+        const json = await adminRegisterApi(buildAuthPayload(form));
         if (json?.success === false) {
+          dispatch(logout());
           setError(json?.message || 'Registration failed');
           return;
         }
@@ -95,11 +107,9 @@ const Login = () => {
         return;
       }
 
-      const json = await adminLoginApi({
-        EMAIL_ADDRESS: form.email.trim(),
-        PASSWORD: form.password,
-      });
+      const json = await adminLoginApi(buildAuthPayload(form));
       if (json?.success === false) {
+        dispatch(logout());
         setError(json?.message || 'Login failed');
         return;
       }
@@ -121,6 +131,7 @@ const Login = () => {
       }
       navigate(fromPath, { replace: true });
     } catch (err) {
+      dispatch(logout());
       setError(getApiErrorMessage(err, mode === 'register' ? 'Registration failed' : 'Login failed'));
     } finally {
       setSubmitting(false);
