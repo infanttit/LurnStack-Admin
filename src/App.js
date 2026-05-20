@@ -4,6 +4,8 @@ import AdminLayout from './layouts/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import LiveClasses from './pages/LiveClasses';
 import CreateLiveClass from './pages/CreateLiveClass';
+import Students from './pages/Students';
+import Trainers from './pages/Trainers';
 import Login from './pages/Login';
 import RequireAuth from './components/RequireAuth';
 
@@ -25,12 +27,11 @@ function App() {
           <Route path="live-classes" element={<LiveClasses />} />
           <Route path="live-classes/create" element={<CreateLiveClass />} />
           <Route path="live-classes/edit/:id" element={<CreateLiveClass />} />
+          <Route path="students" element={<Students />} />
+          <Route path="trainers" element={<Trainers />} />
 
           <Route path="collaborative" element={<div className="p-8">Collaborative Module Placeholder</div>} />
-
-          {/* Fallback routes */}
           <Route path="courses" element={<div className="p-8">Courses Module Placeholder</div>} />
-          <Route path="students" element={<div className="p-8">Students Module Placeholder</div>} />
           <Route path="settings" element={<div className="p-8">Settings Module Placeholder</div>} />
         </Route>
 

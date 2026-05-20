@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Video, Users, Settings, BookOpen, LogOut, UsersRound, X } from 'lucide-react';
+import { LayoutDashboard, Video, Users, Settings, BookOpen, LogOut, UsersRound, UserCheck, X } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../store/slices/authSlice';
@@ -11,6 +11,7 @@ const navItems = [
   { name: 'Live Classes', path: '/live-classes', icon: Video },
   { name: 'Collaborative', path: '/collaborative', icon: UsersRound },
   { name: 'Students', path: '/students', icon: Users },
+  { name: 'Trainers', path: '/trainers', icon: UserCheck },
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
