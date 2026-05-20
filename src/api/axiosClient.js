@@ -8,9 +8,11 @@ export const authTokenStorage = {
   key: 'lurnstack_admin_token',
   get() {
     try {
-      return localStorage.getItem(this.key) || '';
+      const storedToken = localStorage.getItem(this.key) || '';
+      if (storedToken) return storedToken;
+      return process.env.REACT_APP_ADMIN_BEARER_TOKEN || '';
     } catch {
-      return '';
+      return process.env.REACT_APP_ADMIN_BEARER_TOKEN || '';
     }
   },
   set(token) {

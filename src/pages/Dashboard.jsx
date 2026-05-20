@@ -1,61 +1,89 @@
-import React from 'react';
-import { Users, BookOpen, Video, CheckCircle } from 'lucide-react';
-
-const statCards = [
-  { title: 'Total Courses', value: '124', icon: BookOpen, color: 'bg-blue-500' },
-  { title: 'Total Students', value: '14,230', icon: Users, color: 'bg-green-500' },
-  { title: 'Upcoming Live Classes', value: '12', icon: Video, color: 'bg-purple-500' },
-  { title: 'Completed Classes', value: '458', icon: CheckCircle, color: 'bg-orange-500' },
-];
+import React, { useEffect, useMemo, useState } from 'react';
+import { UserCheck, Users } from 'lucide-react';
+import { fetchAdminDashboardSummary } from '../api/adminDashboard';
+import AdminSummaryCard from '../components/AdminSummaryCard';
+import ErrorBanner from '../components/ErrorBanner';
+import { getApiErrorMessage } from '../api/axiosClient';
 
 const Dashboard = () => {
+  const [summary, setSummary] = useState({ totalStudents: 0, totalTrainers: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    const loadData = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const summaryResponse = await fetchAdminDashboardSummary();
+
+        if (!active) return;
+
+        if (!summaryResponse?.success) {
+          throw new Error('Failed to load dashboard summary');
+        }
+
+        setSummary({
+          totalStudents: summaryResponse.data?.totalStudents ?? 0,
+          totalTrainers: summaryResponse.data?.totalTrainers ?? 0,
+        });
+      } catch (err) {
+        if (!active) return;
+        setError(getApiErrorMessage(err, 'Unable to load admin dashboard data'));
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const summaryCards = useMemo(
+    () => [
+      {
+        label: 'Total Students',
+        value: summary.totalStudents,
+        detail: 'Active student accounts',
+        icon: Users,
+        accentClass: 'bg-emerald-500',
+      },
+      {
+        label: 'Total Trainers',
+        value: summary.totalTrainers,
+        detail: 'Active trainer accounts',
+        icon: UserCheck,
+        accentClass: 'bg-sky-500',
+      },
+    ],
+    [summary]
+  );
+
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-500 mt-1">Welcome back! Here's what's happening today.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+            <p className="text-sm text-slate-500 mt-1">Live admin metrics for students, trainers, and system status.</p>
+          </div>
+          <div className="rounded-3xl bg-slate-50 px-4 py-3 text-sm text-slate-600 border border-slate-200">
+            {isLoading ? 'Refreshing metrics…' : 'Data last fetched from live API'}
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-        {statCards.map((stat, index) => (
-          <div key={index} className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 flex items-center space-x-4">
-            <div className={`p-4 rounded-lg text-white ${stat.color}`}>
-              <stat.icon className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-              <h3 className="text-2xl font-bold text-gray-900">{stat.value}</h3>
-            </div>
-          </div>
+      {error ? <ErrorBanner message={error} /> : null}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {summaryCards.map((stat) => (
+          <AdminSummaryCard key={stat.label} {...stat} />
         ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-        {/* Attendance Overview Placeholder */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Attendance Overview</h2>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
-            <p className="text-gray-400">Chart will be rendered here</p>
-          </div>
-        </div>
-
-        {/* Quick Actions / Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Recent Activity</h2>
-          <div className="space-y-4">
-            {[1, 2, 3].map((item) => (
-              <div key={item} className="flex items-center space-x-4 pb-4 border-b border-gray-50 last:border-0 last:pb-0">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                  <Video className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">New Live Class Scheduled</p>
-                  <p className="text-xs text-gray-500">React Masterclass - Just now</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
