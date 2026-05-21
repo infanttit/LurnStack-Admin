@@ -14,7 +14,10 @@ import {
   RefreshCcw,
   Ban,
   Unlock,
-  X
+  X,
+  AlertCircle,
+  ArrowRight,
+  Zap
 } from 'lucide-react';
 import { 
   fetchAdminSessions, 
@@ -58,6 +61,7 @@ const Revenue = () => {
   const [pricingSubmitting, setPricingSubmitting] = useState(false);
   const [pricingError, setPricingError] = useState('');
   const [pricingSuccess, setPricingSuccess] = useState('');
+  const [showFlowBanner, setShowFlowBanner] = useState(true);
 
   // Revenue Details Modal State
   const [detailModalSessionId, setDetailModalSessionId] = useState(null);
@@ -120,6 +124,31 @@ const Revenue = () => {
     if (!isNaN(num) && num >= 0 && num <= 100) {
       setTrainerShare((100 - num).toString());
     }
+  };
+
+  // Sessions without any pricing set by admin (blocking student payments)
+  const unpricedSessions = useMemo(() => {
+    return sessions.filter((s) => {
+      const price = s.price ?? s.priceInPaise;
+      return price === undefined || price === null;
+    });
+  }, [sessions]);
+
+  // Quick-fill the pricing form from a selected unpriced session
+  const quickFillSession = (session) => {
+    const id = session.id || session.sessionId;
+    setSelectedSessionId(String(id));
+    setPriceInRupees('');
+    setTrainerShare('50');
+    setPlatformCommission('50');
+    setPricingError('');
+    setPricingSuccess('');
+    setActiveTab('pricing');
+    // Scroll form into view after tab switch
+    setTimeout(() => {
+      const el = document.getElementById('pricing-form-card');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   // Submit pricing matrix update (Admin Only)
@@ -315,8 +344,6 @@ const Revenue = () => {
     return trainerEarnings.slice(ledgerStartIndex, ledgerEndIndex);
   }, [trainerEarnings, ledgerStartIndex, ledgerEndIndex]);
 
-
-
   return (
     <div className="space-y-8 pb-12">
       {/* Header Panel */}
@@ -335,6 +362,84 @@ const Revenue = () => {
           <span>Reload Ledger</span>
         </button>
       </div>
+
+      {/* Platform Payment Flow Banner */}
+      {showFlowBanner && (
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-5 text-white shadow-lg relative overflow-hidden">
+          <button
+            onClick={() => setShowFlowBanner(false)}
+            className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-all"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <p className="text-xs font-bold uppercase tracking-widest text-blue-200 mb-3">Platform Payment Flow</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2 bg-white/10 rounded-2xl px-4 py-2.5 min-w-0">
+              <span className="w-6 h-6 rounded-full bg-white text-blue-600 text-xs font-black flex items-center justify-center shrink-0">1</span>
+              <span className="text-sm font-semibold">Trainer Creates Session</span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-blue-300 shrink-0 hidden sm:block" />
+            <div className="flex items-center gap-2 bg-white/20 border border-white/30 rounded-2xl px-4 py-2.5 min-w-0">
+              <span className="w-6 h-6 rounded-full bg-amber-400 text-amber-900 text-xs font-black flex items-center justify-center shrink-0">2</span>
+              <span className="text-sm font-bold text-amber-200">Admin Sets Session Price ← YOU ARE HERE</span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-blue-300 shrink-0 hidden sm:block" />
+            <div className="flex items-center gap-2 bg-white/10 rounded-2xl px-4 py-2.5 min-w-0">
+              <span className="w-6 h-6 rounded-full bg-white text-blue-600 text-xs font-black flex items-center justify-center shrink-0">3</span>
+              <span className="text-sm font-semibold">Student Pays & Enrolls</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-blue-200 mt-3 leading-relaxed">
+            <strong>Important:</strong> Students cannot complete payment for a session until the admin has configured the price in the <strong>Pricing & Split Matrix</strong> tab below. Sessions without pricing will block all student transactions.
+          </p>
+        </div>
+      )}
+
+      {/* Urgent: Sessions Awaiting Admin Pricing */}
+      {!loading && unpricedSessions.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 shadow-sm">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2 bg-amber-100 text-amber-600 rounded-xl shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-amber-900">
+                {unpricedSessions.length} Session{unpricedSessions.length > 1 ? 's' : ''} Awaiting Your Pricing — Student Payments Blocked!
+              </h3>
+              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                The trainer{unpricedSessions.length > 1 ? 's have' : ' has'} created these sessions but <strong>admin pricing has not been set yet</strong>. Students attempting to pay will fail. Click <strong>"Set Price Now"</strong> to configure pricing immediately.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {unpricedSessions.slice(0, 6).map((s) => (
+              <div
+                key={s.id || s.sessionId}
+                className="bg-white border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm"
+              >
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800 text-xs truncate">{s.classTitle || s.sessionTitle || s.title || 'Untitled Session'}</p>
+                  <p className="text-[10px] text-slate-500 truncate">by {s.instructor || s.trainerName || 'Unknown Trainer'}</p>
+                </div>
+                <button
+                  onClick={() => quickFillSession(s)}
+                  disabled={!isAdmin}
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-[10px] font-bold rounded-xl transition-all active:scale-95 whitespace-nowrap"
+                >
+                  <Zap className="w-3 h-3" />
+                  Set Price Now
+                </button>
+              </div>
+            ))}
+            {unpricedSessions.length > 6 && (
+              <div className="bg-amber-100/60 border border-amber-200 rounded-2xl p-3 flex items-center justify-center">
+                <span className="text-xs font-bold text-amber-700">+{unpricedSessions.length - 6} more sessions need pricing</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Message Banners */}
       {error && <ErrorBanner message={error} />}
@@ -404,6 +509,11 @@ const Revenue = () => {
           >
             <span>Pricing & Split Matrix</span>
             {!isAdmin && <Lock className="w-3.5 h-3.5 text-slate-400" />}
+            {isAdmin && unpricedSessions.length > 0 && (
+              <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-black bg-amber-500 text-white rounded-full leading-none">
+                {unpricedSessions.length > 9 ? '9+' : unpricedSessions.length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('ledger')}
@@ -532,7 +642,7 @@ const Revenue = () => {
       {activeTab === 'pricing' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Form Card */}
-          <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
+          <div id="pricing-form-card" className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
                 <Layers className="w-5 h-5" />
@@ -541,6 +651,10 @@ const Revenue = () => {
                 <h3 className="text-base font-bold text-slate-800">Set Session Pricing</h3>
                 <p className="text-xs text-slate-400">Apply fee splits on trainer-created courses.</p>
               </div>
+            </div>
+            {/* Workflow reminder inside the form */}
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 text-xs text-blue-700 leading-relaxed">
+              <span className="font-bold">Admin Action Required:</span> Trainers create sessions — <strong>you</strong> set the price. The price you configure here is what students will be charged. Students cannot pay until this is set.
             </div>
 
             {/* Check role rules strictly */}
@@ -670,10 +784,12 @@ const Revenue = () => {
                 <thead className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
                   <tr>
                     <th className="px-6 py-4">Session Title</th>
+                    <th className="px-6 py-4">Trainer</th>
                     <th className="px-6 py-4">Trainer Share</th>
-                    <th className="px-6 py-4">Platform Commission</th>
+                    <th className="px-6 py-4">Platform Comm.</th>
                     <th className="px-6 py-4">Configured Price</th>
-                    <th className="px-6 py-4 text-center">Status</th>
+                    <th className="px-6 py-4 text-center">Payment Status</th>
+                    <th className="px-6 py-4 text-center">Admin Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white text-slate-600">
@@ -683,18 +799,69 @@ const Revenue = () => {
                     const hasPricing = price !== undefined && price !== null;
 
                     return (
-                      <tr key={s.id || s.sessionId || index} className="hover:bg-slate-50/50">
-                        <td className="px-6 py-4 font-semibold text-slate-800">{s.classTitle || s.sessionTitle || s.title || '-'}</td>
+                      <tr
+                        key={s.id || s.sessionId || index}
+                        className={`hover:bg-slate-50/50 transition-all ${!hasPricing ? 'bg-amber-50/40' : ''}`}
+                      >
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="font-semibold text-slate-800">{s.classTitle || s.sessionTitle || s.title || '-'}</p>
+                            {!hasPricing && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 mt-0.5">
+                                <AlertCircle className="w-3 h-3" />
+                                Student payments blocked
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-500 font-medium">{s.instructor || s.trainerName || '-'}</td>
                         <td className="px-6 py-4 font-semibold text-slate-700">{trainerSplit}%</td>
                         <td className="px-6 py-4 font-semibold text-slate-700">{100 - trainerSplit}%</td>
                         <td className="px-6 py-4 font-bold text-slate-800">
-                          {hasPricing ? formatCurrency(price) : <span className="text-slate-400 italic">Not set</span>}
+                          {hasPricing ? formatCurrency(price) : <span className="text-amber-600 font-bold italic">⚠ Not set</span>}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {hasPricing ? (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-extrabold border bg-emerald-50 text-emerald-700 border-emerald-200/40">Active</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold border bg-emerald-50 text-emerald-700 border-emerald-200/40">
+                              <CheckCircle className="w-3 h-3" />
+                              Active
+                            </span>
                           ) : (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-extrabold border bg-slate-50 text-slate-500 border-slate-200">Awaiting Pricing</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-300">
+                              <AlertCircle className="w-3 h-3" />
+                              Awaiting Admin Price
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {!hasPricing && isAdmin ? (
+                            <button
+                              onClick={() => {
+                                setSelectedSessionId(String(s.id || s.sessionId));
+                                setPriceInRupees('');
+                                setPricingError('');
+                                setPricingSuccess('');
+                                const el = document.getElementById('pricing-form-card');
+                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all active:scale-95 shadow-sm"
+                            >
+                              <Zap className="w-3 h-3" />
+                              Set Price
+                            </button>
+                          ) : hasPricing && isAdmin ? (
+                            <button
+                              onClick={() => {
+                                setSelectedSessionId(String(s.id || s.sessionId));
+                                const el = document.getElementById('pricing-form-card');
+                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all"
+                            >
+                              Edit
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">-</span>
                           )}
                         </td>
                       </tr>

@@ -6,6 +6,8 @@ import LiveClasses from './pages/LiveClasses';
 import CreateLiveClass from './pages/CreateLiveClass';
 import Students from './pages/Students';
 import Trainers from './pages/Trainers';
+import Payments from './pages/Payments';
+import Revenue from './pages/Revenue';
 import Login from './pages/Login';
 import RequireAuth from './components/RequireAuth';
 
@@ -29,6 +31,8 @@ function App() {
           <Route path="live-classes/edit/:id" element={<CreateLiveClass />} />
           <Route path="students" element={<Students />} />
           <Route path="trainers" element={<Trainers />} />
+          <Route path="payments" element={<Payments />} />
+          <Route path="revenue" element={<Revenue />} />
 
           <Route path="collaborative" element={<div className="p-8">Collaborative Module Placeholder</div>} />
           <Route path="courses" element={<div className="p-8">Courses Module Placeholder</div>} />
