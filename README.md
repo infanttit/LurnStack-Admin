@@ -1,6 +1,12 @@
-# Getting Started with Create React App
+# LurnStack Admin Panel
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This is the administrator management dashboard for LurnStack.
+
+## Project Documentation
+*   **Detailed Workflow and Features Guide:** Refer to the [workflow.md](file:///d:/ADMIN/LurnStack-Admin/workflow.md) file for a detailed theoretical walkthrough of the architecture, data flows, pages, Redux state slices, and full API endpoint mappings.
+
+---
+
 
 ## Available Scripts
 
