@@ -38,6 +38,7 @@ const Payments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [refundFilter, setRefundFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Global settings state
@@ -203,9 +204,37 @@ const Payments = () => {
         (refundFilter === 'refunded' && isRefunded) ||
         (refundFilter === 'not_refunded' && !isRefunded);
 
-      return matchesSearch && matchesStatus && matchesRefund;
+      const paidDateStr = pay.paidDate || pay.createdAt || pay.updatedAt || '';
+      let matchesDate = true;
+      if (dateFilter !== 'all') {
+        const itemDate = new Date(paidDateStr);
+        if (!isNaN(itemDate.getTime())) {
+          const now = new Date();
+          if (dateFilter === 'today') {
+            matchesDate = 
+              itemDate.getDate() === now.getDate() &&
+              itemDate.getMonth() === now.getMonth() &&
+              itemDate.getFullYear() === now.getFullYear();
+          } else if (dateFilter === 'yesterday') {
+            const yesterday = new Date();
+            yesterday.setDate(now.getDate() - 1);
+            matchesDate = 
+              itemDate.getDate() === yesterday.getDate() &&
+              itemDate.getMonth() === yesterday.getMonth() &&
+              itemDate.getFullYear() === yesterday.getFullYear();
+          } else if (dateFilter === 'this_month') {
+            matchesDate = 
+              itemDate.getMonth() === now.getMonth() &&
+              itemDate.getFullYear() === now.getFullYear();
+          }
+        } else {
+          matchesDate = false;
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesRefund && matchesDate;
     });
-  }, [payments, searchTerm, statusFilter, refundFilter]);
+  }, [payments, searchTerm, statusFilter, refundFilter, dateFilter]);
 
   // Pagination logic
   const totalEntries = filteredPayments.length;
@@ -213,7 +242,7 @@ const Payments = () => {
   
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, refundFilter]);
+  }, [searchTerm, statusFilter, refundFilter, dateFilter]);
 
   const activePage = Math.min(Math.max(1, currentPage), totalPages);
   const startIndex = (activePage - 1) * PAGE_SIZE;
@@ -232,7 +261,7 @@ const Payments = () => {
 
     payments.forEach((pay) => {
       const status = String(pay.paymentStatus || pay.status || '').toLowerCase();
-      const amount = Number(pay.amountPaid || pay.amount || 0);
+      const amount = Number(pay.amount || pay.amountPaid || 0);
 
       if (status === 'captured' || status === 'success') {
         gross += amount;
@@ -353,15 +382,17 @@ const Payments = () => {
         </div>
       )}
 
-      {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Top Section: Overview Cards & Settings */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Financial Overview Cards */}
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
           <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-2xl">
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Settled (Gross)</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{formatCurrency(stats.gross)}</h3>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">₹{(stats.gross / 100).toFixed(2)}</h3>
             <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
               <span>{stats.successfulCount} transactions completed</span>
             </p>
@@ -400,12 +431,69 @@ const Payments = () => {
             <p className="text-xs text-blue-600 mt-1">Logs in system db</p>
           </div>
         </div>
+        </div>
+        
+        {/* Right 1 Col: Global Payment Settings Form */}
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+              <Settings className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800">Global Payment Settings</h3>
+              <p className="text-xs text-slate-400">Adjust overall platform commission rate.</p>
+            </div>
+          </div>
+
+          {settingsError && (
+            <div className="bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-2xl text-xs">
+              {settingsError}
+            </div>
+          )}
+
+          {settingsSuccess && (
+            <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 rounded-2xl text-xs font-medium">
+              {settingsSuccess}
+            </div>
+          )}
+
+          <form onSubmit={handleUpdateSettings} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Global Platform Fee (%)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  placeholder="Enter percentage (e.g. 15)"
+                  value={globalPlatformFee}
+                  onChange={(e) => setGlobalPlatformFee(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none pr-8 font-semibold text-slate-700"
+                />
+                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 text-sm font-bold">%</span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                Adjusting this changes the base rate platform splits for trainer payouts unless overridden in individual session matrices.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={updatingSettings}
+              className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-[0.98]"
+            >
+              {updatingSettings ? 'Saving...' : 'Apply Fee Adjustment'}
+            </button>
+          </form>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Left 2 Cols: Transaction List */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      {/* Transaction History Table - Full Width */}
+      <div className="w-full space-y-4">
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden w-full">
             {/* Control Bar */}
             <div className="p-6 border-b border-slate-100 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -465,13 +553,29 @@ const Payments = () => {
                   </select>
                 </div>
 
+                {/* Date Range Filter Dropdown */}
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                  <span className="text-slate-400 mr-1.5 font-medium">Time Period:</span>
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="bg-transparent font-semibold text-slate-700 outline-none cursor-pointer pr-1"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="this_month">This Month</option>
+                  </select>
+                </div>
+
                 {/* Reset button */}
-                {(searchTerm || statusFilter !== 'all' || refundFilter !== 'all') && (
+                {(searchTerm || statusFilter !== 'all' || refundFilter !== 'all' || dateFilter !== 'all') && (
                   <button 
                     onClick={() => {
                       setSearchTerm('');
                       setStatusFilter('all');
                       setRefundFilter('all');
+                      setDateFilter('all');
                     }}
                     className="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 py-1 px-2 hover:bg-blue-50 rounded-lg transition-colors"
                   >
@@ -503,22 +607,22 @@ const Payments = () => {
                 <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
                     <tr>
-                      <th className="px-6 py-4 w-12">#</th>
-                      <th className="px-6 py-4">Student</th>
-                      <th className="px-6 py-4">Session Class</th>
-                      <th className="px-6 py-4">Amount</th>
-                      <th className="px-6 py-4 text-center">Status</th>
-                      <th className="px-6 py-4">Gateway ID</th>
-                      <th className="px-6 py-4">Date & Time</th>
-                      <th className="px-6 py-4 text-center">Refund Action</th>
+                      <th className="hidden md:table-cell px-4 py-3 w-12">#</th>
+                      <th className="px-4 py-3">Student</th>
+                      <th className="px-4 py-3">Session Class</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="hidden lg:table-cell px-4 py-3">Gateway ID</th>
+                      <th className="hidden sm:table-cell px-4 py-3">Date & Time</th>
+                      <th className="px-4 py-3 text-center">Refund Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
                     {paginatedPayments.map((pay, index) => {
                       const studentName = pay.studentName || pay.student?.fullName || 'Guest Student';
-                      const sessionTitle = pay.sessionTitle || pay.session?.classTitle || 'Platform Class';
+                      const sessionTitle = pay.booking?.liveSession?.title ? `${pay.booking.liveSession.title} (by ${pay.booking.liveSession.trainer?.name || 'Unknown'})` : 'N/A';
                       const status = pay.paymentStatus || pay.status || 'unknown';
-                      const amount = pay.amountPaid ?? pay.amount ?? 0;
+                      const amount = pay.amount ?? pay.amountPaid ?? 0;
                       const razorpayId = pay.razorpayPaymentId || pay.paymentId || '-';
                       const paidDate = pay.paidDate || pay.createdAt || pay.updatedAt || '';
                       
@@ -531,30 +635,30 @@ const Payments = () => {
 
                       return (
                         <tr key={pay.id || pay.paymentId || index} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 font-semibold text-slate-400 text-xs">{actualIndex}</td>
-                          <td className="px-6 py-4">
+                          <td className="hidden md:table-cell px-4 py-3 font-semibold text-slate-400 text-xs">{actualIndex}</td>
+                          <td className="px-4 py-3">
                             <span className="font-bold text-slate-800">{studentName}</span>
                           </td>
-                          <td className="px-6 py-4">
-                            <span className="font-medium text-slate-600 block max-w-[180px] truncate" title={sessionTitle}>
+                          <td className="px-4 py-3">
+                            <span className="font-medium text-slate-600 block max-w-[150px] sm:max-w-[220px] truncate" title={sessionTitle}>
                               {sessionTitle}
                             </span>
                           </td>
-                          <td className="px-6 py-4 font-bold text-slate-800">{formatCurrency(amount)}</td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(status, isRefunded)}`}>
+                          <td className="px-4 py-3 font-bold text-slate-800">₹{(amount / 100).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold border ${getStatusBadgeClass(status, isRefunded)}`}>
                               {isRefunded ? 'refunded' : status}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="hidden lg:table-cell px-4 py-3">
                             <code className="text-xs bg-slate-50 border border-slate-200/50 text-slate-500 px-2 py-0.5 rounded font-mono select-all">
                               {razorpayId}
                             </code>
                           </td>
-                          <td className="px-6 py-4 text-xs font-semibold text-slate-500 whitespace-nowrap">
+                          <td className="hidden sm:table-cell px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">
                             {formatTimestamp(paidDate)}
                           </td>
-                          <td className="px-6 py-4 text-center">
+                          <td className="px-4 py-3 text-center">
                             {isRefunded ? (
                               <span className="text-xs text-amber-600 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/30">Refunded</span>
                             ) : isRefundable ? (
@@ -632,77 +736,6 @@ const Payments = () => {
             )}
           </div>
         </div>
-
-        {/* Right 1 Col: Global Payment Settings Form */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                <Settings className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-800">Global Payment Settings</h3>
-                <p className="text-xs text-slate-400">Adjust overall platform commission rate.</p>
-              </div>
-            </div>
-
-            {settingsError && (
-              <div className="bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-2xl text-xs">
-                {settingsError}
-              </div>
-            )}
-
-            {settingsSuccess && (
-              <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 rounded-2xl text-xs font-medium">
-                {settingsSuccess}
-              </div>
-            )}
-
-            <form onSubmit={handleUpdateSettings} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Global Platform Fee (%)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    placeholder="Enter percentage (e.g. 15)"
-                    value={globalPlatformFee}
-                    onChange={(e) => setGlobalPlatformFee(e.target.value)}
-                    className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none pr-8 font-semibold text-slate-700"
-                  />
-                  <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 text-sm font-bold">%</span>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                  Adjusting this changes the base rate platform splits for trainer payouts unless overridden in individual session matrices.
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={updatingSettings}
-                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-[0.98]"
-              >
-                {updatingSettings ? 'Saving...' : 'Apply Fee Adjustment'}
-              </button>
-            </form>
-          </div>
-
-          {/* Quick Informational card */}
-          <div className="bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-3xl p-6 shadow-sm space-y-4">
-            <h4 className="font-bold text-sm">Fintech & Razorpay Gateway</h4>
-            <p className="text-xs text-blue-200 leading-relaxed">
-              All transactions listed are fetched directly from our platform's live databases, linked to webhooks connected with Razorpay.
-            </p>
-            <div className="text-[10px] text-blue-300 border-t border-blue-800/60 pt-3">
-              <span className="font-bold">Security Note:</span> Refunding is final. Funds are transferred back to the original source bank account within 5-7 business days.
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

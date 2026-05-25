@@ -10,10 +10,19 @@ import Payments from './pages/Payments';
 import Revenue from './pages/Revenue';
 import Login from './pages/Login';
 import RequireAuth from './components/RequireAuth';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+import AttendanceOverview from './pages/AttendanceOverview';
+import CourseAttendanceDetail from './pages/CourseAttendanceDetail';
+import SessionAttendanceRoster from './pages/SessionAttendanceRoster';
+import TrainerAttendanceReport from './pages/TrainerAttendanceReport';
+import StudentAttendanceAudit from './pages/StudentAttendanceAudit';
 
 function App() {
   return (
     <Router>
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
       <Routes>
         <Route path="/login" element={<Login />} />
 
@@ -37,6 +46,13 @@ function App() {
           <Route path="collaborative" element={<div className="p-8">Collaborative Module Placeholder</div>} />
           <Route path="courses" element={<div className="p-8">Courses Module Placeholder</div>} />
           <Route path="settings" element={<div className="p-8">Settings Module Placeholder</div>} />
+          
+          {/* Attendance Routes */}
+          <Route path="attendance" element={<AttendanceOverview />} />
+          <Route path="courses/:courseId/attendance" element={<CourseAttendanceDetail />} />
+          <Route path="sessions/:sessionId/attendance" element={<SessionAttendanceRoster />} />
+          <Route path="trainers/:trainerId/attendance" element={<TrainerAttendanceReport />} />
+          <Route path="students/:studentId/attendance" element={<StudentAttendanceAudit />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
