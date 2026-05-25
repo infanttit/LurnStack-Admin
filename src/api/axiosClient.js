@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const DEFAULT_BASE_URL = 'https://api.lurnstack.com';
+const DEFAULT_BASE_URL = process.env.NODE_ENV === 'development' ? '' : 'https://api.lurnstack.com';
 
 export const apiBaseURL = process.env.REACT_APP_API_BASE_URL || DEFAULT_BASE_URL;
 

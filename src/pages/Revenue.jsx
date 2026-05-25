@@ -62,6 +62,8 @@ const Revenue = () => {
   const [pricingError, setPricingError] = useState('');
   const [pricingSuccess, setPricingSuccess] = useState('');
   const [showFlowBanner, setShowFlowBanner] = useState(true);
+  const [sessionSelectionLocked, setSessionSelectionLocked] = useState(false);
+  const [currency, setCurrency] = useState('INR');
 
   // Revenue Details Modal State
   const [detailModalSessionId, setDetailModalSessionId] = useState(null);
@@ -138,7 +140,9 @@ const Revenue = () => {
   const quickFillSession = (session) => {
     const id = session.id || session.sessionId;
     setSelectedSessionId(String(id));
+    setSessionSelectionLocked(true);
     setPriceInRupees('');
+    setCurrency('INR');
     setTrainerShare('50');
     setPlatformCommission('50');
     setPricingError('');
@@ -188,7 +192,7 @@ const Revenue = () => {
         priceInPaise,
         trainerSharePercentage: tShare,
         platformCommissionPercentage: pComm,
-        currency: 'INR'
+        currency: currency
       });
 
       if (res?.success) {
@@ -203,7 +207,8 @@ const Revenue = () => {
                   price: priceInPaise,
                   priceInPaise,
                   trainerSharePercentage: tShare,
-                  platformCommissionPercentage: pComm
+                  platformCommissionPercentage: pComm,
+                  currency: currency
                 }
               : s
           )
@@ -425,9 +430,9 @@ const Revenue = () => {
                 <button
                   onClick={() => quickFillSession(s)}
                   disabled={!isAdmin}
-                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-[10px] font-bold rounded-xl transition-all active:scale-95 whitespace-nowrap"
+                  className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl transition-all active:scale-95 shadow-md whitespace-nowrap"
                 >
-                  <Zap className="w-3 h-3" />
+                  <Zap className="w-3.5 h-3.5" />
                   Set Price Now
                 </button>
               </div>
@@ -683,26 +688,56 @@ const Revenue = () => {
               {/* Target Session Dropdown */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Target Session Name</label>
-                <select
-                  disabled={!isAdmin}
-                  value={selectedSessionId}
-                  onChange={(e) => setSelectedSessionId(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-medium text-slate-700 disabled:opacity-50"
-                >
-                  <option value="">-- Choose Session / Live Class --</option>
-                  {sessions.map((s) => (
-                    <option key={s.id || s.sessionId} value={s.id || s.sessionId}>
-                      {s.classTitle || s.sessionTitle || s.title} ({s.instructor || 'No instructor'})
-                    </option>
-                  ))}
-                </select>
+                {sessionSelectionLocked ? (
+                  <div className="space-y-2">
+                    <div className="w-full px-3 py-2.5 text-sm bg-slate-100 border border-slate-200 rounded-xl font-medium text-slate-700 truncate cursor-not-allowed">
+                      {(() => {
+                        const s = sessions.find((s) => String(s.id || s.sessionId) === selectedSessionId);
+                        if (!s) return 'Selected Session';
+                        const title = s.classTitle || s.sessionTitle || s.title || 'Selected Session';
+                        const trainer = s.instructor || s.trainerName || 'No instructor';
+                        return `${title} (${trainer})`;
+                      })()}
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setSessionSelectionLocked(false);
+                          setSelectedSessionId('');
+                          setPriceInRupees('');
+                          setCurrency('INR');
+                          setPricingError('');
+                          setPricingSuccess('');
+                        }} 
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    disabled={!isAdmin}
+                    value={selectedSessionId}
+                    onChange={(e) => setSelectedSessionId(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-medium text-slate-700 disabled:opacity-50"
+                  >
+                    <option value="">-- Choose Session / Live Class --</option>
+                    {sessions.map((s) => (
+                      <option key={s.id || s.sessionId} value={s.id || s.sessionId}>
+                        {s.classTitle || s.sessionTitle || s.title} ({s.instructor || 'No instructor'})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Price in Rupees */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Price in Rupees (₹)</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Price in {currency === 'INR' ? 'Rupees (₹)' : 'USD ($)'}</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-sm font-semibold">₹</span>
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-sm font-semibold">{currency === 'INR' ? '₹' : '$'}</span>
                   <input
                     disabled={!isAdmin}
                     type="number"
@@ -713,18 +748,21 @@ const Revenue = () => {
                     className="w-full pl-7 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">Sent as integer Paise to the payment settlement gateway.</p>
+                <p className="text-[10px] text-slate-400 mt-1">Sent as minor units (Paise/Cents) to the payment gateway.</p>
               </div>
 
               {/* Currency Indicator */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Currency Indicator</label>
-                <input
-                  type="text"
-                  value="INR"
-                  readOnly
-                  className="w-full px-3 py-2.5 text-sm bg-slate-100 border border-slate-200 rounded-xl outline-none font-semibold text-slate-400"
-                />
+                <select
+                  disabled={!isAdmin}
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
               </div>
 
               {/* Splits Matrix (Trainer / Platform) */}
@@ -827,7 +865,7 @@ const Revenue = () => {
                               Active
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-300">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-300 whitespace-nowrap">
                               <AlertCircle className="w-3 h-3" />
                               Awaiting Admin Price
                             </span>
@@ -838,21 +876,24 @@ const Revenue = () => {
                             <button
                               onClick={() => {
                                 setSelectedSessionId(String(s.id || s.sessionId));
+                                setSessionSelectionLocked(true);
                                 setPriceInRupees('');
+                                setCurrency('INR');
                                 setPricingError('');
                                 setPricingSuccess('');
                                 const el = document.getElementById('pricing-form-card');
                                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                               }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all active:scale-95 shadow-sm"
+                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95 shadow-md whitespace-nowrap"
                             >
-                              <Zap className="w-3 h-3" />
+                              <Zap className="w-3.5 h-3.5" />
                               Set Price
                             </button>
                           ) : hasPricing && isAdmin ? (
                             <button
                               onClick={() => {
                                 setSelectedSessionId(String(s.id || s.sessionId));
+                                setSessionSelectionLocked(true);
                                 const el = document.getElementById('pricing-form-card');
                                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                               }}

@@ -17,7 +17,7 @@ const AdminLayout = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar onMenuClick={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4 sm:p-6">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-screen-2xl mx-auto w-full">
             <Outlet />
           </div>
         </main>
