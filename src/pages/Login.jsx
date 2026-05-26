@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { loginSuccess, logout } from '../store/slices/authSlice';
 import { adminLoginApi, adminRegisterApi, adminMeApi } from '../api/adminAuth';
 import { authTokenStorage, getApiErrorMessage } from '../api/axiosClient';
+import logoImage from '../Assets/Logo/Logo2.png';
 
 const getTokenFromLoginResponse = (json) => {
   const direct = json?.token || json?.accessToken;
@@ -31,6 +32,8 @@ const buildAuthPayload = ({ fullName, email, password }) => {
     password,
   };
 };
+
+const SHOW_REGISTRATION = false;
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -143,40 +146,46 @@ const Login = () => {
       <div className="w-full max-w-md bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-8">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">LurnStack Admin</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <div className="mb-5 flex justify-center">
+              <img src={logoImage} alt="LurnStack" className="h-16 w-auto object-contain" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 text-center">LurnStack Admin</h1>
+            <p className="text-sm text-gray-500 mt-1 text-center">
               {mode === 'login' ? 'Sign in to continue' : 'Create an admin account'}
             </p>
           </div>
 
-          <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-gray-50 p-1 border border-gray-100">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setError('');
-                setSuccess('');
-              }}
-              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                mode === 'login' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('register');
-                setError('');
-                setSuccess('');
-              }}
-              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                mode === 'register' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Register
-            </button>
-          </div>
+          {/* Registration is intentionally hidden for now. Keep the register flow above for future use. */}
+          {SHOW_REGISTRATION ? (
+            <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-gray-50 p-1 border border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setError('');
+                  setSuccess('');
+                }}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  mode === 'login' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('register');
+                  setError('');
+                  setSuccess('');
+                }}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  mode === 'register' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Register
+              </button>
+            </div>
+          ) : null}
 
           <form onSubmit={onSubmit} className="space-y-4">
             {mode === 'register' ? (

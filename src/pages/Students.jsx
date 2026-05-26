@@ -78,6 +78,8 @@ const Students = () => {
         loading={isLoading}
         error={error}
         renderActions={renderActions}
+        enablePdfExport
+        exportFilename="students-records"
       />
     </div>
   );

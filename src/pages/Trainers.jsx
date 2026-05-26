@@ -100,6 +100,8 @@ const Trainers = () => {
         loading={isLoading}
         error={error}
         renderActions={renderActions}
+        enablePdfExport
+        exportFilename="trainers-records"
       />
 
       {/* Trainer edit modal removed — inline status toggle is used instead */}
