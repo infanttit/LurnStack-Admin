@@ -10,6 +10,7 @@ import Payments from './pages/Payments';
 import Revenue from './pages/Revenue';
 import Login from './pages/Login';
 import RequireAuth from './components/RequireAuth';
+import PendingSessions from './pages/PendingSessions';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -44,6 +45,8 @@ function App() {
           <Route path="trainers" element={<Trainers />} />
           <Route path="payments" element={<Payments />} />
           <Route path="revenue" element={<Revenue />} />
+          <Route path="revenue/set-price/:sessionId" element={<Revenue />} />
+          <Route path="pending-sessions" element={<PendingSessions />} />
 
           <Route path="collaborative" element={<div className="p-8">Collaborative Module Placeholder</div>} />
           <Route path="courses" element={<div className="p-8">Courses Module Placeholder</div>} />

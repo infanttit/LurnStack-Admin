@@ -32,6 +32,11 @@ export const deleteStudent = async (studentId) => {
   return response.data;
 };
 
+export const bulkDeleteStudents = async () => {
+  const response = await axiosClient.delete(ADMIN_STUDENTS_ENDPOINT);
+  return response.data;
+};
+
 export const updateTrainer = async (trainerId, payload) => {
   const response = await axiosClient.patch(`${ADMIN_TRAINERS_ENDPOINT}/${trainerId}`, payload);
   return response.data;
