@@ -18,6 +18,7 @@ import CourseAttendanceDetail from './pages/CourseAttendanceDetail';
 import SessionAttendanceRoster from './pages/SessionAttendanceRoster';
 import TrainerAttendanceReport from './pages/TrainerAttendanceReport';
 import StudentAttendanceAudit from './pages/StudentAttendanceAudit';
+import TrainerSessions from './pages/TrainerSessions';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/trainer/sessions" element={<TrainerSessions />} />
 
         <Route
           path="/"

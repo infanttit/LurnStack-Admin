@@ -62,6 +62,33 @@ export const studentTokenStorage = {
   },
 };
 
+export const trainerTokenStorage = {
+  key: 'lurnstack_trainer_token',
+  get() {
+    try {
+      const fromStorage = localStorage.getItem(this.key) || '';
+      if (fromStorage) return fromStorage;
+      return process.env.REACT_APP_TRAINER_BEARER_TOKEN || process.env.REACT_APP_TRAINER_API_TOKEN || '';
+    } catch {
+      return process.env.REACT_APP_TRAINER_BEARER_TOKEN || process.env.REACT_APP_TRAINER_API_TOKEN || '';
+    }
+  },
+  set(token) {
+    try {
+      localStorage.setItem(this.key, token || '');
+    } catch {
+      // ignore
+    }
+  },
+  clear() {
+    try {
+      localStorage.removeItem(this.key);
+    } catch {
+      // ignore
+    }
+  },
+};
+
 export const axiosClient = axios.create({
   baseURL: apiBaseURL,
   timeout: 20000,
@@ -83,10 +110,14 @@ axiosClient.interceptors.request.use((config) => {
   const url = String(config?.url || '');
   const isAuthFreeRequest = AUTH_FREE_PATHS.some((path) => isSameApiPath(url, path));
   const isStudentRequest = url.includes('/api/student/');
+  const isTrainerRequest = url.includes('/api/trainer/');
   const studentToken = isStudentRequest ? studentTokenStorage.get() : '';
+  const trainerToken = isTrainerRequest ? trainerTokenStorage.get() : '';
   const token = isAuthFreeRequest
     ? ''
-    : isStudentRequest
+    : isTrainerRequest
+      ? (trainerToken || authTokenStorage.get())
+      : isStudentRequest
       ? (studentToken || authTokenStorage.get())
       : authTokenStorage.get();
   if (token) {
