@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   IndianRupee, 
   Layers, 
@@ -17,7 +18,10 @@ import {
   X,
   AlertCircle,
   ArrowRight,
-  Zap
+  Zap,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   fetchAdminSessions, 
@@ -36,6 +40,11 @@ const Revenue = () => {
   // Redux Auth State
   const user = useSelector((state) => state.auth?.user);
   
+  // React Router Navigation Hooks
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  
   // Strict admin check (ONLY ADMIN role can modify pricing matrices)
   const isAdmin = useMemo(() => {
     if (!user) return false;
@@ -44,7 +53,9 @@ const Revenue = () => {
   }, [user]);
 
   // Tab State: 'pricing' | 'revenue' | 'ledger'
-  const [activeTab, setActiveTab] = useState('revenue');
+  const [activeTab, setActiveTab] = useState(() => {
+    return location.state?.activeTab || 'revenue';
+  });
 
   // Core Data States
   const [sessions, setSessions] = useState([]);
@@ -61,8 +72,8 @@ const Revenue = () => {
   const [pricingSubmitting, setPricingSubmitting] = useState(false);
   const [pricingError, setPricingError] = useState('');
   const [pricingSuccess, setPricingSuccess] = useState('');
-  const [showFlowBanner, setShowFlowBanner] = useState(true);
-  const [sessionSelectionLocked, setSessionSelectionLocked] = useState(false);
+  const [isFlowCollapsed, setIsFlowCollapsed] = useState(false);
+  const [isAlertCollapsed, setIsAlertCollapsed] = useState(false);
   const [currency, setCurrency] = useState('INR');
 
   // Revenue Details Modal State
@@ -101,6 +112,27 @@ const Revenue = () => {
     loadDashboardData();
   }, []);
 
+  // Auto-populate pricing states when editing a specific session from route parameter
+  useEffect(() => {
+    if (sessionId && sessions.length > 0) {
+      const s = sessions.find((item) => String(item.id || item.sessionId) === String(sessionId));
+      if (s) {
+        setSelectedSessionId(String(s.id || s.sessionId));
+        const price = s.price ?? s.priceInPaise;
+        if (price !== undefined && price !== null) {
+          setPriceInRupees((price / 100).toString());
+        } else {
+          setPriceInRupees('');
+        }
+        setCurrency(s.currency || 'INR');
+        setTrainerShare((s.trainerSharePercentage ?? 50).toString());
+        setPlatformCommission((s.platformCommissionPercentage ?? 50).toString());
+        setPricingError('');
+        setPricingSuccess('');
+      }
+    }
+  }, [sessionId, sessions]);
+
   // Format currency helper (assuming amount is in Paise)
   const formatCurrency = (amountInPaise) => {
     if (amountInPaise === undefined || amountInPaise === null) return '₹0.00';
@@ -136,24 +168,6 @@ const Revenue = () => {
     });
   }, [sessions]);
 
-  // Quick-fill the pricing form from a selected unpriced session
-  const quickFillSession = (session) => {
-    const id = session.id || session.sessionId;
-    setSelectedSessionId(String(id));
-    setSessionSelectionLocked(true);
-    setPriceInRupees('');
-    setCurrency('INR');
-    setTrainerShare('50');
-    setPlatformCommission('50');
-    setPricingError('');
-    setPricingSuccess('');
-    setActiveTab('pricing');
-    // Scroll form into view after tab switch
-    setTimeout(() => {
-      const el = document.getElementById('pricing-form-card');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-  };
 
   // Submit pricing matrix update (Admin Only)
   const handleUpdatePricing = async (e) => {
@@ -349,197 +363,337 @@ const Revenue = () => {
     return trainerEarnings.slice(ledgerStartIndex, ledgerEndIndex);
   }, [trainerEarnings, ledgerStartIndex, ledgerEndIndex]);
 
+  // Render dedicated set-price screen if sessionId is present in URL
+  if (sessionId) {
+    if (loading) {
+      return (
+        <div className="py-24 text-center">
+          <div className="inline-block animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-3" />
+          <p className="text-sm text-slate-500 font-medium">Loading session details...</p>
+        </div>
+      );
+    }
+
+    const currentSession = sessions.find((s) => String(s.id || s.sessionId) === String(sessionId));
+
+    if (!currentSession) {
+      return (
+        <div className="max-w-2xl mx-auto py-12 px-4 space-y-6">
+          <button
+            onClick={() => navigate('/revenue', { state: { activeTab: 'pricing' } })}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Revenue Matrices</span>
+          </button>
+          <div className="bg-rose-50 border border-rose-200 rounded-3xl p-6 text-center space-y-4">
+            <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+            <h3 className="text-lg font-bold text-rose-900">Pricing Matrix Session Not Found</h3>
+            <p className="text-sm text-rose-700">
+              The session ID specified in the URL is invalid or does not match any current session.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate('/revenue', { state: { activeTab: 'pricing' } })}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Revenue Matrices</span>
+          </button>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-8">
+          <div className="border-b border-slate-100 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-500/10 text-blue-600 rounded-2xl">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-800">Configure Session Pricing</h2>
+                <p className="text-sm text-slate-400 mt-0.5">Define fee split values and active course rate matrices.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Session Name</p>
+            <h3 className="text-lg font-black text-slate-800">
+              {currentSession.classTitle || currentSession.sessionTitle || currentSession.title}
+            </h3>
+            <p className="text-xs text-slate-500 font-medium">
+              Instructor / Trainer: <span className="font-bold text-slate-700">{currentSession.instructor || currentSession.trainerName || 'No instructor assigned'}</span>
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-xs text-blue-700 leading-relaxed">
+            <span className="font-bold">Admin Action Required:</span> Trainers create sessions — <strong>you</strong> set the price. The price you configure here is what students will be charged. Students cannot pay until this is set.
+          </div>
+
+          {!isAdmin && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl flex gap-3">
+              <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs leading-relaxed">
+                <span className="font-bold">Access Denied:</span> Under strict platform business rules, trainers are prohibited from defining price matrices. You must be an <span className="font-semibold">ADMIN</span> to submit pricing modifications.
+              </div>
+            </div>
+          )}
+
+          {pricingError && (
+            <div className="bg-rose-50 border border-rose-100 text-rose-800 p-4 rounded-2xl text-xs">
+              {pricingError}
+            </div>
+          )}
+
+          {pricingSuccess && (
+            <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-4 rounded-2xl text-xs font-semibold">
+              {pricingSuccess}
+            </div>
+          )}
+
+          <form onSubmit={handleUpdatePricing} className="space-y-6">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Price in {currency === 'INR' ? 'Rupees (₹)' : 'USD ($)'}</label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 text-base font-semibold">{currency === 'INR' ? '₹' : '$'}</span>
+                <input
+                  disabled={!isAdmin}
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 100"
+                  value={priceInRupees}
+                  onChange={(e) => setPriceInRupees(e.target.value)}
+                  className="w-full pl-8 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">Sent as minor units (Paise/Cents) to the payment gateway.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Currency Indicator</label>
+              <select
+                disabled={!isAdmin}
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-semibold text-slate-700 disabled:opacity-50"
+              >
+                <option value="INR">INR (₹)</option>
+                <option value="USD">USD ($)</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Trainer Share (%)</label>
+                <div className="relative">
+                  <input
+                    disabled={!isAdmin}
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={trainerShare}
+                    onChange={(e) => handleTrainerShareChange(e.target.value)}
+                    className="w-full pr-8 pl-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
+                  />
+                  <span className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 text-xs font-bold">%</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Platform Comm (%)</label>
+                <div className="relative">
+                  <input
+                    disabled={!isAdmin}
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={platformCommission}
+                    onChange={(e) => handlePlatformCommissionChange(e.target.value)}
+                    className="w-full pr-8 pl-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
+                  />
+                  <span className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 text-xs font-bold">%</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={!isAdmin || pricingSubmitting}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed"
+            >
+              {pricingSubmitting ? 'Submitting Matrix...' : 'Save Pricing Setup'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-12">
       {/* Header Panel */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Finances & Revenue</h1>
+          <h1 className="text-2xl font-black bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 bg-clip-text text-transparent tracking-tight">Finances & Revenue</h1>
           <p className="text-sm text-slate-500 mt-1">
             Establish live class pricing, split commission formulas, and authorize payouts to instructors.
           </p>
         </div>
         <button 
           onClick={loadDashboardData}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-sm font-semibold transition-all shadow-sm active:scale-95 shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-4.5 py-2.5 border border-slate-200 hover:border-slate-350 rounded-xl bg-white hover:bg-slate-50/80 text-slate-700 hover:text-slate-900 text-xs font-bold transition-all shadow-sm active:scale-95 shrink-0"
         >
-          <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Reload Ledger</span>
         </button>
       </div>
 
       {/* Platform Payment Flow Banner */}
-      {showFlowBanner && (
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-5 text-white shadow-lg relative overflow-hidden">
+      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 border border-slate-850 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden transition-all duration-300">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300/80">
+            Platform Payment Flow Guide {isFlowCollapsed ? ' (Collapsed)' : ''}
+          </p>
           <button
-            onClick={() => setShowFlowBanner(false)}
-            className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-all"
-            aria-label="Dismiss"
+            onClick={() => setIsFlowCollapsed(!isFlowCollapsed)}
+            className="p-1.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all flex items-center gap-1.5 text-xs font-bold"
+            aria-label={isFlowCollapsed ? 'Expand Platform Payment Flow' : 'Collapse Platform Payment Flow'}
           >
-            <X className="w-4 h-4" />
+            {isFlowCollapsed ? (
+              <>
+                <span>Expand</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </>
+            ) : (
+              <>
+                <span>Collapse</span>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </>
+            )}
           </button>
-          <p className="text-xs font-bold uppercase tracking-widest text-blue-200 mb-3">Platform Payment Flow</p>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <div className="flex items-center gap-2 bg-white/10 rounded-2xl px-4 py-2.5 min-w-0">
-              <span className="w-6 h-6 rounded-full bg-white text-blue-600 text-xs font-black flex items-center justify-center shrink-0">1</span>
-              <span className="text-sm font-semibold">Trainer Creates Session</span>
+        </div>
+
+        <div className={`transition-all duration-300 overflow-hidden ${isFlowCollapsed ? 'max-h-0 opacity-0 mt-0' : 'max-h-[500px] opacity-100 mt-5'}`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-2xl px-4 py-3 min-w-0">
+              <span className="w-5.5 h-5.5 rounded-full bg-indigo-500/20 border border-indigo-400/20 text-indigo-300 text-xs font-black flex items-center justify-center shrink-0">1</span>
+              <span className="text-xs font-semibold text-slate-350">Trainer Creates Session</span>
             </div>
-            <ArrowRight className="w-4 h-4 text-blue-300 shrink-0 hidden sm:block" />
-            <div className="flex items-center gap-2 bg-white/20 border border-white/30 rounded-2xl px-4 py-2.5 min-w-0">
-              <span className="w-6 h-6 rounded-full bg-amber-400 text-amber-900 text-xs font-black flex items-center justify-center shrink-0">2</span>
-              <span className="text-sm font-bold text-amber-200">Admin Sets Session Price ← YOU ARE HERE</span>
+            <ArrowRight className="w-4 h-4 text-slate-600 shrink-0 hidden sm:block" />
+            <div className="flex items-center gap-3 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl px-4 py-3 min-w-0 shadow-lg shadow-indigo-950/20">
+              <span className="w-5.5 h-5.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-400 text-xs font-black flex items-center justify-center shrink-0">2</span>
+              <span className="text-xs font-bold text-amber-200/90">Admin Sets Session Price ← YOU ARE HERE</span>
             </div>
-            <ArrowRight className="w-4 h-4 text-blue-300 shrink-0 hidden sm:block" />
-            <div className="flex items-center gap-2 bg-white/10 rounded-2xl px-4 py-2.5 min-w-0">
-              <span className="w-6 h-6 rounded-full bg-white text-blue-600 text-xs font-black flex items-center justify-center shrink-0">3</span>
-              <span className="text-sm font-semibold">Student Pays & Enrolls</span>
+            <ArrowRight className="w-4 h-4 text-slate-600 shrink-0 hidden sm:block" />
+            <div className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-2xl px-4 py-3 min-w-0">
+              <span className="w-5.5 h-5.5 rounded-full bg-indigo-500/20 border border-indigo-400/20 text-indigo-300 text-xs font-black flex items-center justify-center shrink-0">3</span>
+              <span className="text-xs font-semibold text-slate-350">Student Pays & Enrolls</span>
             </div>
           </div>
-          <p className="text-[11px] text-blue-200 mt-3 leading-relaxed">
-            <strong>Important:</strong> Students cannot complete payment for a session until the admin has configured the price in the <strong>Pricing & Split Matrix</strong> tab below. Sessions without pricing will block all student transactions.
+          <p className="text-[11px] text-slate-400 mt-4 leading-relaxed max-w-3xl">
+            <strong className="text-slate-200">Important Note:</strong> Students cannot complete payment for a session until the admin has configured the price in the <strong className="text-indigo-300">Pricing & Split Matrix</strong> tab below. Sessions without pricing will block all student transactions.
           </p>
         </div>
-      )}
-
-      {/* Urgent: Sessions Awaiting Admin Pricing */}
-      {!loading && unpricedSessions.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 shadow-sm">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="p-2 bg-amber-100 text-amber-600 rounded-xl shrink-0">
-              <AlertCircle className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-amber-900">
-                {unpricedSessions.length} Session{unpricedSessions.length > 1 ? 's' : ''} Awaiting Your Pricing — Student Payments Blocked!
-              </h3>
-              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                The trainer{unpricedSessions.length > 1 ? 's have' : ' has'} created these sessions but <strong>admin pricing has not been set yet</strong>. Students attempting to pay will fail. Click <strong>"Set Price Now"</strong> to configure pricing immediately.
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {unpricedSessions.slice(0, 6).map((s) => (
-              <div
-                key={s.id || s.sessionId}
-                className="bg-white border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3 shadow-sm"
-              >
-                <div className="min-w-0">
-                  <p className="font-bold text-slate-800 text-xs truncate">{s.classTitle || s.sessionTitle || s.title || 'Untitled Session'}</p>
-                  <p className="text-[10px] text-slate-500 truncate">by {s.instructor || s.trainerName || 'Unknown Trainer'}</p>
-                </div>
-                <button
-                  onClick={() => quickFillSession(s)}
-                  disabled={!isAdmin}
-                  className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold rounded-xl transition-all active:scale-95 shadow-md whitespace-nowrap"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  Set Price Now
-                </button>
-              </div>
-            ))}
-            {unpricedSessions.length > 6 && (
-              <div className="bg-amber-100/60 border border-amber-200 rounded-2xl p-3 flex items-center justify-center">
-                <span className="text-xs font-bold text-amber-700">+{unpricedSessions.length - 6} more sessions need pricing</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Message Banners */}
       {error && <ErrorBanner message={error} />}
       {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-sm flex items-center gap-3 animate-fade-in shadow-sm">
-          <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+        <div className="bg-emerald-50/60 border border-emerald-100 text-emerald-800 px-4 py-3 rounded-2xl text-xs flex items-center gap-3 animate-fade-in shadow-sm">
+          <CheckCircle className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
           <span className="font-semibold">{successMsg}</span>
         </div>
       )}
 
       {/* Global Summary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-blue-500/10 text-blue-600 rounded-2xl">
-            <TrendingUp className="w-6 h-6" />
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/60 hover:border-slate-350 shadow-sm hover:shadow-md transition-all duration-300 flex items-start gap-4">
+          <div className="p-3 bg-blue-500/10 text-blue-600 rounded-2xl border border-blue-500/5">
+            <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Accumulation (Gross)</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{formatCurrency(summaryStats.grossRevenue)}</h3>
-            <p className="text-xs text-slate-400 mt-1">All courses combined</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total Accumulation (Gross)</p>
+            <h3 className="text-2xl font-black text-slate-800 mt-1.5">{formatCurrency(summaryStats.grossRevenue)}</h3>
+            <p className="text-[11px] text-slate-400 mt-1">All courses combined</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-2xl">
-            <IndianRupee className="w-6 h-6" />
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/60 hover:border-slate-350 shadow-sm hover:shadow-md transition-all duration-300 flex items-start gap-4">
+          <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-2xl border border-emerald-50/5">
+            <IndianRupee className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Platform Split (Net)</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{formatCurrency(summaryStats.platformEarnings)}</h3>
-            <p className="text-xs text-emerald-600 mt-1 font-medium">Earned by Platform</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Platform Split (Net)</p>
+            <h3 className="text-2xl font-black text-slate-800 mt-1.5">{formatCurrency(summaryStats.platformEarnings)}</h3>
+            <p className="text-[11px] text-emerald-600 mt-1 font-semibold">Earned by Platform</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-violet-500/10 text-violet-600 rounded-2xl">
-            <Coins className="w-6 h-6" />
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/60 hover:border-slate-350 shadow-sm hover:shadow-md transition-all duration-300 flex items-start gap-4">
+          <div className="p-3 bg-violet-500/10 text-violet-600 rounded-2xl border border-violet-50/5">
+            <Coins className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Trainer Allocations</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{formatCurrency(summaryStats.trainerEarningsSum)}</h3>
-            <p className="text-xs text-violet-600 mt-1 font-medium">To be settled manually</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Trainer Allocations</p>
+            <h3 className="text-2xl font-black text-slate-800 mt-1.5">{formatCurrency(summaryStats.trainerEarningsSum)}</h3>
+            <p className="text-[11px] text-violet-600 mt-1 font-semibold">To be settled manually</p>
           </div>
         </div>
       </div>
 
       {/* Tabs Control */}
-      <div className="border-b border-slate-200">
-        <div className="flex gap-6">
-          <button
-            onClick={() => setActiveTab('revenue')}
-            className={`pb-4 text-sm font-bold border-b-2 transition-all px-1 ${
-              activeTab === 'revenue' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            Revenue Tracking Grid
-          </button>
-          <button
-            onClick={() => setActiveTab('pricing')}
-            className={`pb-4 text-sm font-bold border-b-2 transition-all px-1 flex items-center gap-1.5 ${
-              activeTab === 'pricing' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            <span>Pricing & Split Matrix</span>
-            {!isAdmin && <Lock className="w-3.5 h-3.5 text-slate-400" />}
-            {isAdmin && unpricedSessions.length > 0 && (
-              <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-black bg-amber-500 text-white rounded-full leading-none">
-                {unpricedSessions.length > 9 ? '9+' : unpricedSessions.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('ledger')}
-            className={`pb-4 text-sm font-bold border-b-2 transition-all px-1 ${
-              activeTab === 'ledger' 
-                ? 'border-blue-600 text-blue-600' 
-                : 'border-transparent text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            Trainer Earnings Ledger
-          </button>
-        </div>
+      <div className="flex gap-2 p-1.5 bg-slate-100/80 border border-slate-200/40 rounded-2xl w-fit">
+        <button
+          onClick={() => setActiveTab('revenue')}
+          className={`px-4.5 py-2.5 rounded-xl text-xs font-black transition-all duration-250 active:scale-95 ${
+            activeTab === 'revenue' 
+              ? 'bg-white text-slate-900 shadow-sm' 
+              : 'text-slate-400 hover:text-slate-650'
+          }`}
+        >
+          Revenue Tracking Grid
+        </button>
+        <button
+          onClick={() => setActiveTab('pricing')}
+          className={`px-4.5 py-2.5 rounded-xl text-xs font-black transition-all duration-250 active:scale-95 flex items-center gap-1.5 ${
+            activeTab === 'pricing' 
+              ? 'bg-white text-slate-900 shadow-sm' 
+              : 'text-slate-400 hover:text-slate-650'
+          }`}
+        >
+          <span>Pricing & Split Matrix</span>
+          {!isAdmin && <Lock className="w-3 h-3 text-slate-400" />}
+          {isAdmin && unpricedSessions.length > 0 && (
+            <span className="inline-flex items-center justify-center w-5 h-5 text-[9px] font-black bg-amber-500 text-white rounded-full leading-none">
+              {unpricedSessions.length > 9 ? '9+' : unpricedSessions.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('ledger')}
+          className={`px-4.5 py-2.5 rounded-xl text-xs font-black transition-all duration-250 active:scale-95 ${
+            activeTab === 'ledger' 
+              ? 'bg-white text-slate-900 shadow-sm' 
+              : 'text-slate-400 hover:text-slate-650'
+          }`}
+        >
+          Trainer Earnings Ledger
+        </button>
       </div>
 
       {/* Tab Contents */}
 
       {/* 1. Revenue Tracking Grid Tab */}
       {activeTab === 'revenue' && (
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100">
-            <h2 className="text-lg font-bold text-slate-800">Financial & Performance Dashboard</h2>
+            <h2 className="text-base font-bold text-slate-800">Financial & Performance Dashboard</h2>
             <p className="text-xs text-slate-400 mt-0.5">Performance tracking and platform splits per session.</p>
           </div>
 
@@ -556,19 +710,19 @@ const Revenue = () => {
               </div>
             ) : (
               <table className="min-w-full text-left text-sm divide-y divide-slate-100">
-                <thead className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+                <thead className="bg-slate-50/60 text-slate-450 text-[10px] font-black uppercase tracking-widest">
                   <tr>
-                    <th className="px-6 py-4">Session Title</th>
-                    <th className="px-6 py-4">Trainer Name</th>
-                    <th className="px-6 py-4 text-center">Paid Students</th>
-                    <th className="px-6 py-4">Gross Revenue</th>
-                    <th className="px-6 py-4">Platform Allocation</th>
-                    <th className="px-6 py-4">Trainer Allocation</th>
-                    <th className="px-6 py-4 text-center">Settlement Status</th>
-                    <th className="px-6 py-4 text-center">Detailed Breakdown</th>
+                    <th className="px-6 py-4.5">Session Title</th>
+                    <th className="px-6 py-4.5">Trainer Name</th>
+                    <th className="px-6 py-4.5 text-center">Paid Students</th>
+                    <th className="px-6 py-4.5">Gross Revenue</th>
+                    <th className="px-6 py-4.5">Platform Allocation</th>
+                    <th className="px-6 py-4.5">Trainer Allocation</th>
+                    <th className="px-6 py-4.5 text-center">Settlement Status</th>
+                    <th className="px-6 py-4.5 text-center">Detailed Breakdown</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                <tbody className="divide-y divide-slate-100 bg-white text-slate-750">
                   {paginatedSessions.map((s, idx) => {
                     const gross = Number(s.grossRevenue || s.revenue || 0);
                     const tPct = Number(s.trainerSharePercentage ?? 50);
@@ -577,24 +731,24 @@ const Revenue = () => {
                     const paidStudentsCount = s.paidStudentCount ?? s.studentsCount ?? s.purchasedCount ?? 0;
                     
                     return (
-                      <tr key={s.id || s.sessionId || idx} className="hover:bg-slate-50/50 transition-all">
+                      <tr key={s.id || s.sessionId || idx} className="hover:bg-slate-50/30 transition-all duration-150">
                         <td className="px-6 py-4 font-bold text-slate-800">{s.classTitle || s.sessionTitle || s.title || '-'}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-600">{s.instructor || s.trainerName || '-'}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-550">{s.instructor || s.trainerName || '-'}</td>
                         <td className="px-6 py-4 text-center font-bold text-slate-700">{paidStudentsCount}</td>
                         <td className="px-6 py-4 font-extrabold text-slate-800">{formatCurrency(gross)}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-emerald-600 whitespace-nowrap">
-                          {formatCurrency(platformShareAmt)} ({100 - tPct}%)
+                        <td className="px-6 py-4 text-xs font-bold text-emerald-600 whitespace-nowrap">
+                          {formatCurrency(platformShareAmt)} <span className="text-[10px] text-emerald-500 font-medium">({100 - tPct}%)</span>
                         </td>
-                        <td className="px-6 py-4 text-xs font-semibold text-violet-600 whitespace-nowrap">
-                          {formatCurrency(trainerShareAmt)} ({tPct}%)
+                        <td className="px-6 py-4 text-xs font-bold text-violet-650 whitespace-nowrap">
+                          {formatCurrency(trainerShareAmt)} <span className="text-[10px] text-violet-500 font-medium">({tPct}%)</span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold border ${
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
                             s.payoutStatus === 'paid' 
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' 
                               : s.payoutStatus === 'hold'
                                 ? 'bg-rose-50 text-rose-700 border-rose-200/50'
-                                : 'bg-slate-50 text-slate-600 border-slate-200'
+                                : 'bg-slate-100/80 text-slate-600 border-slate-200'
                           }`}>
                             {s.payoutStatus || s.status || 'pending'}
                           </span>
@@ -602,7 +756,7 @@ const Revenue = () => {
                         <td className="px-6 py-4 text-center">
                           <button
                             onClick={() => handleViewRevenueDetails(s.id || s.sessionId)}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-all"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-705 hover:text-slate-900 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl px-3 py-1.5 transition-all shadow-sm active:scale-95"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>View Breakdown</span>
@@ -618,7 +772,7 @@ const Revenue = () => {
 
           {/* Pagination */}
           {!loading && sessions.length > 0 && (
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 text-xs text-slate-500">
+            <div className="px-6 py-4 border-t border-slate-150 flex items-center justify-between bg-slate-50/50 text-xs text-slate-500">
               <div>
                 Showing <span className="font-bold text-slate-700">{revStartIndex + 1}</span> to <span className="font-bold text-slate-700">{revEndIndex}</span> of <span className="font-bold text-slate-700">{totalRevEntries}</span> sessions
               </div>
@@ -626,14 +780,14 @@ const Revenue = () => {
                 <button
                   onClick={() => setRevPage((p) => Math.max(1, p - 1))}
                   disabled={activeRevPage <= 1}
-                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40"
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 text-xs font-bold text-slate-650 transition-all active:scale-95"
                 >
                   Prev
                 </button>
                 <button
                   onClick={() => setRevPage((p) => Math.min(totalRevPages, p + 1))}
                   disabled={activeRevPage >= totalRevPages}
-                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40"
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 text-xs font-bold text-slate-650 transition-all active:scale-95"
                 >
                   Next
                 </button>
@@ -645,279 +799,98 @@ const Revenue = () => {
 
       {/* 2. Pricing & Split Matrix Settings Tab (Guarded) */}
       {activeTab === 'pricing' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Form Card */}
-          <div id="pricing-form-card" className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                <Layers className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-800">Set Session Pricing</h3>
-                <p className="text-xs text-slate-400">Apply fee splits on trainer-created courses.</p>
-              </div>
-            </div>
-            {/* Workflow reminder inside the form */}
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3 text-xs text-blue-700 leading-relaxed">
-              <span className="font-bold">Admin Action Required:</span> Trainers create sessions — <strong>you</strong> set the price. The price you configure here is what students will be charged. Students cannot pay until this is set.
-            </div>
-
-            {/* Check role rules strictly */}
-            {!isAdmin ? (
-              <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl flex gap-3">
-                <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-xs leading-relaxed">
-                  <span className="font-bold">Access Denied:</span> Under strict platform business rules, trainers are prohibited from defining price matrices. You must be an <span className="font-semibold">ADMIN</span> to submit pricing modifications.
-                </div>
-              </div>
-            ) : null}
-
-            {pricingError && (
-              <div className="bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-2xl text-xs">
-                {pricingError}
-              </div>
-            )}
-
-            {pricingSuccess && (
-              <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 rounded-2xl text-xs font-semibold">
-                {pricingSuccess}
-              </div>
-            )}
-
-            <form onSubmit={handleUpdatePricing} className="space-y-4">
-              {/* Target Session Dropdown */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Target Session Name</label>
-                {sessionSelectionLocked ? (
-                  <div className="space-y-2">
-                    <div className="w-full px-3 py-2.5 text-sm bg-slate-100 border border-slate-200 rounded-xl font-medium text-slate-700 truncate cursor-not-allowed">
-                      {(() => {
-                        const s = sessions.find((s) => String(s.id || s.sessionId) === selectedSessionId);
-                        if (!s) return 'Selected Session';
-                        const title = s.classTitle || s.sessionTitle || s.title || 'Selected Session';
-                        const trainer = s.instructor || s.trainerName || 'No instructor';
-                        return `${title} (${trainer})`;
-                      })()}
-                    </div>
-                    <div className="flex items-center justify-end">
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setSessionSelectionLocked(false);
-                          setSelectedSessionId('');
-                          setPriceInRupees('');
-                          setCurrency('INR');
-                          setPricingError('');
-                          setPricingSuccess('');
-                        }} 
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        Clear Selection
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <select
-                    disabled={!isAdmin}
-                    value={selectedSessionId}
-                    onChange={(e) => setSelectedSessionId(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-medium text-slate-700 disabled:opacity-50"
-                  >
-                    <option value="">-- Choose Session / Live Class --</option>
-                    {sessions.map((s) => (
-                      <option key={s.id || s.sessionId} value={s.id || s.sessionId}>
-                        {s.classTitle || s.sessionTitle || s.title} ({s.instructor || 'No instructor'})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Price in Rupees */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Price in {currency === 'INR' ? 'Rupees (₹)' : 'USD ($)'}</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 text-sm font-semibold">{currency === 'INR' ? '₹' : '$'}</span>
-                  <input
-                    disabled={!isAdmin}
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 100"
-                    value={priceInRupees}
-                    onChange={(e) => setPriceInRupees(e.target.value)}
-                    className="w-full pl-7 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">Sent as minor units (Paise/Cents) to the payment gateway.</p>
-              </div>
-
-              {/* Currency Indicator */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Currency Indicator</label>
-                <select
-                  disabled={!isAdmin}
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-semibold text-slate-700 disabled:opacity-50"
-                >
-                  <option value="INR">INR (₹)</option>
-                  <option value="USD">USD ($)</option>
-                </select>
-              </div>
-
-              {/* Splits Matrix (Trainer / Platform) */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Trainer Share (%)</label>
-                  <div className="relative">
-                    <input
-                      disabled={!isAdmin}
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={trainerShare}
-                      onChange={(e) => handleTrainerShareChange(e.target.value)}
-                      className="w-full pr-7 pl-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
-                    />
-                    <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 text-xs font-bold">%</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Platform Comm (%)</label>
-                  <div className="relative">
-                    <input
-                      disabled={!isAdmin}
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={platformCommission}
-                      onChange={(e) => handlePlatformCommissionChange(e.target.value)}
-                      className="w-full pr-7 pl-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
-                    />
-                    <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 text-xs font-bold">%</span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={!isAdmin || pricingSubmitting}
-                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed"
-              >
-                {pricingSubmitting ? 'Submitting Matrix...' : 'Save Pricing Setup'}
-              </button>
-            </form>
+        <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col w-full">
+          <div className="p-6 border-b border-slate-100">
+            <h3 className="text-base font-bold text-slate-800">Current Session Pricing Matrices</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Overview of configured prices and splits.</p>
           </div>
+          
+          <div className="overflow-x-auto flex-1">
+            <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
+              <thead className="bg-slate-50/60 text-slate-450 text-[10px] font-black uppercase tracking-widest">
+                <tr>
+                  <th className="px-6 py-4.5">Session Title</th>
+                  <th className="px-6 py-4.5">Trainer</th>
+                  <th className="px-6 py-4.5">Share</th>
+                  <th className="px-6 py-4.5">Platform Comm.</th>
+                  <th className="px-6 py-4.5">Configured Price</th>
+                  <th className="px-6 py-4.5 text-center">Payment Status</th>
+                  <th className="px-6 py-4.5 text-center">Admin Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white text-slate-650">
+                {sessions.map((s, index) => {
+                  const price = s.price ?? s.priceInPaise;
+                  const trainerSplit = s.trainerSharePercentage ?? 50;
+                  const hasPricing = price !== undefined && price !== null;
 
-          {/* Pricing Ledger Card */}
-          <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-800">Current Session Pricing Matrices</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Overview of configured prices and splits.</p>
-            </div>
-            
-            <div className="overflow-x-auto flex-1">
-              <table className="min-w-full divide-y divide-slate-100 text-left text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4">Session Title</th>
-                    <th className="px-6 py-4">Trainer</th>
-                    <th className="px-6 py-4">Trainer Share</th>
-                    <th className="px-6 py-4">Platform Comm.</th>
-                    <th className="px-6 py-4">Configured Price</th>
-                    <th className="px-6 py-4 text-center">Payment Status</th>
-                    <th className="px-6 py-4 text-center">Admin Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white text-slate-600">
-                  {sessions.map((s, index) => {
-                    const price = s.price ?? s.priceInPaise;
-                    const trainerSplit = s.trainerSharePercentage ?? 50;
-                    const hasPricing = price !== undefined && price !== null;
-
-                    return (
-                      <tr
-                        key={s.id || s.sessionId || index}
-                        className={`hover:bg-slate-50/50 transition-all ${!hasPricing ? 'bg-amber-50/40' : ''}`}
-                      >
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="font-semibold text-slate-800">{s.classTitle || s.sessionTitle || s.title || '-'}</p>
-                            {!hasPricing && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 mt-0.5">
-                                <AlertCircle className="w-3 h-3" />
-                                Student payments blocked
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-xs text-slate-500 font-medium">{s.instructor || s.trainerName || '-'}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-700">{trainerSplit}%</td>
-                        <td className="px-6 py-4 font-semibold text-slate-700">{100 - trainerSplit}%</td>
-                        <td className="px-6 py-4 font-bold text-slate-800">
-                          {hasPricing ? formatCurrency(price) : <span className="text-amber-600 font-bold italic">⚠ Not set</span>}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {hasPricing ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold border bg-emerald-50 text-emerald-700 border-emerald-200/40">
-                              <CheckCircle className="w-3 h-3" />
-                              Active
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-300 whitespace-nowrap">
-                              <AlertCircle className="w-3 h-3" />
-                              Awaiting Admin Price
+                  return (
+                    <tr
+                      key={s.id || s.sessionId || index}
+                      className={`hover:bg-slate-50/30 transition-all duration-150 ${!hasPricing ? 'bg-amber-50/20' : ''}`}
+                    >
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-bold text-slate-800">{s.classTitle || s.sessionTitle || s.title || '-'}</p>
+                          {!hasPricing && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 mt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              Student payments blocked
                             </span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {!hasPricing && isAdmin ? (
-                            <button
-                              onClick={() => {
-                                setSelectedSessionId(String(s.id || s.sessionId));
-                                setSessionSelectionLocked(true);
-                                setPriceInRupees('');
-                                setCurrency('INR');
-                                setPricingError('');
-                                setPricingSuccess('');
-                                const el = document.getElementById('pricing-form-card');
-                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                              }}
-                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95 shadow-md whitespace-nowrap"
-                            >
-                              <Zap className="w-3.5 h-3.5" />
-                              Set Price
-                            </button>
-                          ) : hasPricing && isAdmin ? (
-                            <button
-                              onClick={() => {
-                                setSelectedSessionId(String(s.id || s.sessionId));
-                                setSessionSelectionLocked(true);
-                                const el = document.getElementById('pricing-form-card');
-                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all"
-                            >
-                              Edit
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-400">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-500 font-semibold">{s.instructor || s.trainerName || '-'}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-700">{trainerSplit}%</td>
+                      <td className="px-6 py-4 font-semibold text-slate-700">{100 - trainerSplit}%</td>
+                      <td className="px-6 py-4 font-extrabold text-slate-800">
+                        {hasPricing ? formatCurrency(price) : <span className="text-amber-605 font-black italic">⚠ Not set</span>}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {hasPricing ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-emerald-50/60 text-emerald-700 border-emerald-200/40">
+                            <CheckCircle className="w-3 h-3" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border bg-amber-50/60 text-amber-705 border-amber-250 whitespace-nowrap">
+                            <AlertCircle className="w-3 h-3" />
+                            Awaiting Price
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {!hasPricing && isAdmin ? (
+                          <button
+                            onClick={() => navigate(`/revenue/set-price/${s.id || s.sessionId}`)}
+                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95 shadow-md whitespace-nowrap"
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                            Set Price
+                          </button>
+                        ) : hasPricing && isAdmin ? (
+                          <button
+                            onClick={() => navigate(`/revenue/set-price/${s.id || s.sessionId}`)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl transition-all shadow-sm active:scale-95"
+                          >
+                            Edit
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
       {/* 3. Trainer Earnings Ledger Tab */}
       {activeTab === 'ledger' && (
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <h2 className="text-lg font-bold text-slate-800">Trainer Payout Settlement Ledger</h2>
             <p className="text-xs text-slate-400 mt-0.5">Review instructor balances, issue manual bank transfer marks, or freeze funds.</p>
@@ -936,15 +909,15 @@ const Revenue = () => {
               </div>
             ) : (
               <table className="min-w-full text-left text-sm divide-y divide-slate-100">
-                <thead className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+                <thead className="bg-slate-50/60 text-slate-450 text-[10px] font-black uppercase tracking-widest">
                   <tr>
-                    <th className="px-6 py-4">Trainer Name</th>
-                    <th className="px-6 py-4">Session Info</th>
-                    <th className="px-6 py-4">Amount Allocated</th>
-                    <th className="px-6 py-4 text-center">Current Status</th>
-                    <th className="px-6 py-4 text-center">Hold Status</th>
-                    <th className="px-6 py-4 text-center">Settlement Actions</th>
-                    <th className="px-6 py-4 text-center">Hold Control</th>
+                    <th className="px-6 py-4.5">Trainer Name</th>
+                    <th className="px-6 py-4.5">Session Info</th>
+                    <th className="px-6 py-4.5">Amount Allocated</th>
+                    <th className="px-6 py-4.5 text-center">Current Status</th>
+                    <th className="px-6 py-4.5 text-center">Hold Status</th>
+                    <th className="px-6 py-4.5 text-center">Settlement Actions</th>
+                    <th className="px-6 py-4.5 text-center">Hold Control</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
@@ -956,29 +929,29 @@ const Revenue = () => {
                     const isHold = earn.hold || payoutStatus === 'hold';
                     
                     return (
-                      <tr key={earn.id || earn.earningId || idx} className="hover:bg-slate-50/50">
+                      <tr key={earn.id || earn.earningId || idx} className="hover:bg-slate-50/30 transition-all duration-150">
                         <td className="px-6 py-4 font-bold text-slate-800">{name}</td>
                         <td className="px-6 py-4 font-medium text-slate-500">{session}</td>
-                        <td className="px-6 py-4 font-bold text-slate-800">{formatCurrency(amount)}</td>
+                        <td className="px-6 py-4 font-extrabold text-slate-800">{formatCurrency(amount)}</td>
                         <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold border ${
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
                             payoutStatus === 'paid'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50'
+                              ? 'bg-emerald-55/10 text-emerald-700 border-emerald-200/50'
                               : payoutStatus === 'hold'
-                                ? 'bg-rose-50 text-rose-700 border-rose-200/50'
-                                : 'bg-slate-50 text-slate-600 border-slate-200'
+                                ? 'bg-rose-55/10 text-rose-700 border-rose-200/50'
+                                : 'bg-slate-100/80 text-slate-600 border-slate-200'
                           }`}>
                             {payoutStatus}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           {isHold ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200/40">
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200/40">
                               <ShieldAlert className="w-3.5 h-3.5" />
                               <span>Frozen</span>
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-400 font-medium">Unrestricted</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-100/60 px-2.5 py-1 rounded-full">Unrestricted</span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -988,7 +961,7 @@ const Revenue = () => {
                             <button
                               disabled={isHold}
                               onClick={() => handleMarkPaid(earn.id || earn.earningId, name, amount)}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-600 border border-emerald-200 hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-700 border border-emerald-200 bg-white hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               Mark Settled (Paid)
                             </button>
@@ -1000,10 +973,10 @@ const Revenue = () => {
                           ) : (
                             <button
                               onClick={() => handleToggleHold(earn.id || earn.earningId, name, isHold)}
-                              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shadow-sm active:scale-95 ${
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shadow-sm active:scale-95 ${
                                 isHold 
-                                  ? 'text-slate-600 border-slate-300 hover:bg-slate-100' 
-                                  : 'text-rose-600 border-rose-200 hover:bg-rose-600 hover:text-white'
+                                  ? 'text-slate-650 border-slate-300 hover:bg-slate-100 bg-white' 
+                                  : 'text-rose-700 border-rose-200 hover:bg-rose-600 hover:text-white bg-white'
                               }`}
                             >
                               {isHold ? (
@@ -1030,7 +1003,7 @@ const Revenue = () => {
 
           {/* Pagination */}
           {!loading && trainerEarnings.length > 0 && (
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 text-xs text-slate-500">
+            <div className="px-6 py-4 border-t border-slate-150 flex items-center justify-between bg-slate-50/50 text-xs text-slate-500">
               <div>
                 Showing <span className="font-bold text-slate-700">{ledgerStartIndex + 1}</span> to <span className="font-bold text-slate-700">{ledgerEndIndex}</span> of <span className="font-bold text-slate-700">{totalLedgerEntries}</span> earnings ledger logs
               </div>
@@ -1038,14 +1011,14 @@ const Revenue = () => {
                 <button
                   onClick={() => setLedgerPage((p) => Math.max(1, p - 1))}
                   disabled={activeLedgerPage <= 1}
-                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40"
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 text-xs font-bold text-slate-650 transition-all active:scale-95"
                 >
                   Prev
                 </button>
                 <button
                   onClick={() => setLedgerPage((p) => Math.min(totalLedgerPages, p + 1))}
                   disabled={activeLedgerPage >= totalLedgerPages}
-                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40"
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 text-xs font-bold text-slate-650 transition-all active:scale-95"
                 >
                   Next
                 </button>
@@ -1057,19 +1030,19 @@ const Revenue = () => {
 
       {/* Detailed Revenue Modal/Sidebar */}
       {detailModalSessionId !== null && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-200/80 animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+            <div className="p-6 bg-slate-950 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-base">Session Revenue breakdown</h3>
-                <p className="text-xs text-slate-300 mt-0.5">Auditing calculations for payments & splits</p>
+                <h3 className="font-extrabold text-slate-50 text-base">Session Revenue breakdown</h3>
+                <p className="text-[11px] text-slate-400 mt-1">Auditing calculations for payments & splits</p>
               </div>
               <button 
                 onClick={() => setDetailModalSessionId(null)}
-                className="p-1.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
+                className="p-2 rounded-xl bg-white/5 text-white/80 hover:text-white hover:bg-white/10 transition-all border border-white/10"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1081,72 +1054,69 @@ const Revenue = () => {
                   <p className="text-xs text-slate-500 font-medium">Computing live shares...</p>
                 </div>
               ) : sessionRevenueDetails ? (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {/* No pricing warning banner */}
                   {sessionRevenueDetails._noPricing && (
-                    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-2xl text-xs flex items-center gap-2">
-                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>No pricing has been configured for this session yet. Set it in the <strong>Pricing &amp; Split Matrix</strong> tab.</span>
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl text-xs flex items-center gap-2.5">
+                      <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+                      <span className="leading-relaxed">No pricing has been configured for this session yet. Set it in the <strong>Pricing &amp; Split Matrix</strong> tab.</span>
                     </div>
                   )}
 
-                  <div className="pb-3 border-b border-slate-100">
-                    <h4 className="font-bold text-slate-800 text-base">
+                  <div className="pb-3.5 border-b border-slate-100">
+                    <h4 className="font-extrabold text-slate-900 text-base">
                       {sessionRevenueDetails.classTitle || sessionRevenueDetails.sessionTitle || sessionRevenueDetails.title || 'Platform Session'}
                     </h4>
-                    <p className="text-xs text-slate-400 mt-0.5">Trainer: {sessionRevenueDetails.instructor || sessionRevenueDetails.trainerName || '-'}</p>
+                    <p className="text-xs text-slate-400 mt-1.5">Trainer: <span className="font-bold text-slate-655">{sessionRevenueDetails.instructor || sessionRevenueDetails.trainerName || '-'}</span></p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Total Paid Enrolments</p>
-                      <h5 className="text-lg font-black text-slate-800 mt-1 flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-blue-500" />
+                    <div className="bg-slate-50/60 p-4.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Total Paid Enrolments</p>
+                      <h5 className="text-lg font-black text-slate-800 mt-2 flex items-center gap-2">
+                        <Users className="w-4.5 h-4.5 text-blue-500" />
                         <span>{sessionRevenueDetails.paidStudentCount ?? sessionRevenueDetails.studentsCount ?? 0} students</span>
                       </h5>
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Session Price</p>
-                      <h5 className="text-lg font-black text-slate-800 mt-1">
+                    <div className="bg-slate-50/60 p-4.5 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Session Price</p>
+                      <h5 className="text-lg font-black text-slate-800 mt-2">
                         {formatCurrency(sessionRevenueDetails.sessionPricePaise ?? sessionRevenueDetails.priceInPaise ?? sessionRevenueDetails.price ?? 0)}
                       </h5>
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-3">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-slate-500">Gross Income (Total Sum)</span>
-                      <span className="font-bold text-slate-800 text-sm">
-                        {/* grossRevenuePaise is in paise; grossRevenue is in rupees — use paise for formatCurrency */}
+                  <div className="space-y-4 pt-3 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Gross Income (Total Sum)</span>
+                      <span className="font-black text-slate-800 text-sm">
                         {formatCurrency(sessionRevenueDetails.grossRevenuePaise ?? (sessionRevenueDetails.grossRevenue ?? 0) * 100)}
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-center text-xs border-t border-slate-100 pt-3">
-                      <span className="font-semibold text-slate-500">Platform Earning Share ({100 - (sessionRevenueDetails.trainerSharePercentage ?? 50)}%)</span>
-                      <span className="font-bold text-emerald-600 text-sm">
-                        {/* Use pre-computed platformEarningPaise or convert platformEarning (rupees) to paise */}
+                    <div className="flex justify-between items-center border-t border-slate-100 pt-4">
+                      <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Platform Earning Share ({100 - (sessionRevenueDetails.trainerSharePercentage ?? 50)}%)</span>
+                      <span className="font-black text-emerald-650 text-sm">
                         {formatCurrency(sessionRevenueDetails.platformEarningPaise ?? (sessionRevenueDetails.platformEarning ?? 0) * 100)}
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-center text-xs border-t border-slate-100 pt-3">
-                      <span className="font-semibold text-slate-500">Trainer Earning Share ({sessionRevenueDetails.trainerSharePercentage ?? 50}%)</span>
-                      <span className="font-bold text-violet-600 text-sm">
-                        {/* Use pre-computed trainerEarningPaise or convert trainerEarning (rupees) to paise */}
+                    <div className="flex justify-between items-center border-t border-slate-100 pt-4">
+                      <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Trainer Earning Share ({sessionRevenueDetails.trainerSharePercentage ?? 50}%)</span>
+                      <span className="font-black text-violet-650 text-sm">
                         {formatCurrency(sessionRevenueDetails.trainerEarningPaise ?? (sessionRevenueDetails.trainerEarning ?? 0) * 100)}
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-center text-xs border-t border-slate-100 pt-3">
-                      <span className="font-semibold text-slate-500">Settlement State</span>
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                    <div className="flex justify-between items-center border-t border-slate-100 pt-4">
+                      <span className="font-bold text-slate-500 uppercase tracking-wider text-[10px]">Settlement State</span>
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
                         sessionRevenueDetails.payoutStatus === 'paid' 
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' 
                           : sessionRevenueDetails.payoutStatus === 'hold'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200/50'
-                            : 'bg-slate-50 text-slate-600 border-slate-200'
+                            ? 'bg-rose-55/10 text-rose-705 border-rose-200/50'
+                            : 'bg-slate-100/80 text-slate-600 border-slate-200'
                       }`}>
                         {sessionRevenueDetails.payoutStatus || 'pending'}
                       </span>
@@ -1154,17 +1124,17 @@ const Revenue = () => {
                   </div>
                 </div>
               ) : (
-                <div className="py-6 text-center text-xs text-rose-600">
+                <div className="py-6 text-center text-xs text-rose-600 font-bold">
                   Could not retrieve details for this session.
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end">
               <button 
                 onClick={() => setDetailModalSessionId(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all"
+                className="px-5 py-2.5 bg-slate-950 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all shadow-md active:scale-95"
               >
                 Close Breakdown
               </button>
@@ -1172,7 +1142,6 @@ const Revenue = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };
