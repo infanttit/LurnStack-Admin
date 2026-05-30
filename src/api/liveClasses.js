@@ -77,3 +77,14 @@ export const deleteLiveClassApi = async (id) => {
   const res = await axiosClient.delete(`${base}/${normalizeId(id)}`);
   return res.data;
 };
+
+export const fetchPendingSessionsApi = async () => {
+  const res = await axiosClient.get('/api/admin/sessions/pending-review');
+  return res.data;
+};
+
+export const reviewSessionApi = async (id, price) => {
+  const res = await axiosClient.put(`/api/admin/sessions/${normalizeId(id)}/review`, { price });
+  return res.data;
+};
+
