@@ -33,7 +33,7 @@ const buildAuthPayload = ({ fullName, email, password }) => {
   };
 };
 
-const SHOW_REGISTRATION = false;
+const SHOW_REGISTRATION = true;
 
 const Login = () => {
   const dispatch = useDispatch();
