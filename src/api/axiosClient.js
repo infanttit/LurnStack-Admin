@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 const DEFAULT_BASE_URL = process.env.NODE_ENV === 'development' ? '' : 'https://api.lurnstack.com';
+const configuredApiBaseURL = String(process.env.REACT_APP_API_BASE_URL || '').trim();
 
-export const apiBaseURL = process.env.REACT_APP_API_BASE_URL || DEFAULT_BASE_URL;
+export const apiBaseURL = configuredApiBaseURL || DEFAULT_BASE_URL;
 
 export const authTokenStorage = {
   key: 'lurnstack_admin_token',
