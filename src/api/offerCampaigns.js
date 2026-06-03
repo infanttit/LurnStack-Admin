@@ -25,7 +25,7 @@ export const fetchOfferTargetsApi = async () => {
 };
 
 export const fetchOfferCampaignsApi = async () => {
-  const response = await axiosClient.get(BASE);
+  const response = await axiosClient.get(`${BASE}?limit=10000`);
   return response.data;
 };
 
