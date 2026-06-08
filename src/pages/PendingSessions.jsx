@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchPendingSessionsApi, reviewSessionApi } from '../api/liveClasses';
+import { updateSessionPricing } from '../api/billing';
 import { getApiErrorMessage } from '../api/axiosClient';
 import { toast } from 'react-toastify';
 import { 
@@ -10,11 +11,10 @@ import {
   AlertCircle, 
   Sparkles, 
   Loader2, 
-  X, 
   CheckCircle,
-  TrendingUp,
   ShieldAlert
 } from 'lucide-react';
+import PricingModal from '../components/PricingModal';
 
 const PendingSessions = () => {
   const [sessions, setSessions] = useState([]);
@@ -23,7 +23,6 @@ const PendingSessions = () => {
   
   // Modal / Review state
   const [reviewingSession, setReviewingSession] = useState(null);
-  const [priceInput, setPriceInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchPendingSessions = async () => {
@@ -48,29 +47,30 @@ const PendingSessions = () => {
 
   const openReviewModal = (session) => {
     setReviewingSession(session);
-    setPriceInput('');
   };
 
   const closeReviewModal = () => {
     if (isSubmitting) return;
     setReviewingSession(null);
-    setPriceInput('');
   };
 
-  const handlePublish = async (e) => {
-    e.preventDefault();
+  const handlePublish = async (pricingData) => {
     if (!reviewingSession) return;
-
-    const parsedPrice = parseFloat(priceInput);
-    if (isNaN(parsedPrice) || parsedPrice < 0) {
-      toast.error('Please enter a valid price (0 or greater).');
-      return;
-    }
 
     setIsSubmitting(true);
     try {
       // Send price in subunits (paisa/cents), 0 for Free
-      const priceInSubunits = Math.round(parsedPrice * 100);
+      const priceInSubunits = Math.round(pricingData.price * 100);
+      
+      // Step 1: Update session pricing
+      await updateSessionPricing(reviewingSession.id, {
+        priceInPaise: priceInSubunits,
+        trainerSharePercentage: pricingData.trainerSharePercentage,
+        platformCommissionPercentage: pricingData.platformCommissionPercentage,
+        currency: pricingData.currency
+      });
+
+      // Step 2: Review and publish the session
       await reviewSessionApi(reviewingSession.id, priceInSubunits);
       
       toast.success(`Session "${reviewingSession.title}" published successfully!`);
@@ -212,99 +212,14 @@ const PendingSessions = () => {
         </div>
       )}
 
-      {/* Review Modal Dialog */}
-      {reviewingSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
-          <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 p-8 space-y-6 animate-in fade-in zoom-in duration-200">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-blue-500/10 text-blue-600 rounded-xl">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="font-extrabold text-slate-800 text-lg">Approve & Publish</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Set session pricing models</p>
-                </div>
-              </div>
-              <button 
-                onClick={closeReviewModal}
-                disabled={isSubmitting}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
-                aria-label="Close modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Target Class Info */}
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Class Title</p>
-              <h3 className="font-bold text-slate-800 text-sm line-clamp-2">{reviewingSession.title}</h3>
-              <p className="text-xs text-slate-500">
-                Created by: <span className="font-semibold text-slate-700">{reviewingSession.trainerName}</span>
-              </p>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handlePublish} className="space-y-6">
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Session Price (INR)
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 text-sm font-semibold">
-                    ₹
-                  </span>
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Enter 0 for a free session, or price in ₹"
-                    value={priceInput}
-                    onChange={(e) => setPriceInput(e.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full pl-8 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 leading-normal">
-                  * Note: Price will be converted to subunits (paisa) for safe integration with payment processing systems. (e.g. ₹499 is sent as 49900 paise). Entering 0 configures the class as a **Free Session**.
-                </p>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="flex gap-3 justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={closeReviewModal}
-                  disabled={isSubmitting}
-                  className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none flex items-center gap-1.5"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Publishing...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Publish & Make Live
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Review Pricing Modal */}
+      <PricingModal
+        isOpen={!!reviewingSession}
+        session={reviewingSession}
+        onClose={closeReviewModal}
+        onSave={handlePublish}
+        isSaving={isSubmitting}
+      />
     </div>
   );
 };

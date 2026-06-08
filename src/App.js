@@ -46,7 +46,6 @@ function App() {
           <Route path="trainers" element={<Trainers />} />
           <Route path="payments" element={<Payments />} />
           <Route path="revenue" element={<Revenue />} />
-          <Route path="revenue/set-price/:sessionId" element={<Revenue />} />
           <Route path="pending-sessions" element={<PendingSessions />} />
           <Route path="offer-campaigns" element={<OfferCampaigns view="campaigns" />} />
           <Route path="offer-campaigns/create" element={<OfferCampaigns view="builder" />} />

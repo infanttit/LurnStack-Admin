@@ -182,7 +182,9 @@ export const CampaignsView = ({ campaigns, onCreate, onEdit, onDelete }) => {
                     <td className="px-5 py-4 text-slate-600 font-medium">{campaign.recipients}</td>
                     <td className="px-5 py-4">
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusStyles[campaign.status] || statusStyles.Draft}`}>
-                        {campaign.status}
+                        {campaign.status === 'Sending'
+                          ? `Sending... (${campaign.sent}/${campaign.recipients})`
+                          : campaign.status}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-slate-600 font-medium">{campaign.updatedAt}</td>

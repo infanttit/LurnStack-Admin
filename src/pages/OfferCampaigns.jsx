@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { authTokenStorage, getApiErrorMessage } from '../api/axiosClient';
 import {
   createOfferCampaignApi,
@@ -124,6 +125,7 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
   const [editingCampaignId, setEditingCampaignId] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   const selectedTemplate = useMemo(
     () => templateList.find((template) => template.id === form.templateId) || initialTemplate,
@@ -240,6 +242,50 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
       active = false;
     };
   }, []);
+
+  const hasSending = campaigns.some((c) => c.status === 'Sending');
+  useEffect(() => {
+    if (!hasSending) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const json = await fetchOfferCampaignsApi();
+        const list = unwrapList(json);
+        const normalized = list.map(normalizeCampaign);
+
+        setCampaigns((prev) => {
+          normalized.forEach((newCamp) => {
+            const oldCamp = prev.find((c) => c.id === newCamp.id);
+            if (oldCamp && oldCamp.status === 'Sending') {
+              if (newCamp.status === 'Sent') {
+                toast.success(`Campaign "${newCamp.name}" sent successfully!`);
+              } else if (newCamp.status === 'Failed') {
+                toast.error(`Campaign "${newCamp.name}" failed to send.`);
+              }
+            }
+          });
+          return normalized;
+        });
+
+        setHistory(
+          normalized
+            .filter((item) => item.status === 'Sent')
+            .map((item) => ({
+              id: item.id,
+              name: item.name,
+              sentAt: item.updatedAt,
+              recipients: item.recipients,
+              sent: item.sent,
+              failed: item.failed,
+            }))
+        );
+      } catch (err) {
+        console.error('Error fetching campaigns during polling:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [hasSending]);
 
   useEffect(() => {
     const buttonLink = buildOfferCtaLink({
@@ -367,6 +413,8 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
   const sendCampaign = async () => {
     const validationError = validateAll();
     if (validationError) return setError(validationError);
+    setIsSending(true);
+    setError('');
     try {
       const payload = buildPayload('Ready');
       const createdJson = editingCampaignId
@@ -389,10 +437,15 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
         ...prev,
       ]);
       resetBuilder();
-      navigate('/offer-campaigns/history');
+      toast.success('Campaign sent successfully!');
+      navigate('/offer-campaigns');
       setNotice('Campaign sent through backend. ZeptoMail delivery will update in history.');
     } catch (apiError) {
-      setError(getApiErrorMessage(apiError, 'Campaign send failed. Please check backend validation.'));
+      const apiMsg = getApiErrorMessage(apiError, 'Campaign send failed. Please check backend validation.');
+      setError(apiMsg);
+      toast.error(apiMsg);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -506,6 +559,7 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
           onMarkReady={markReady}
           onSend={sendCampaign}
           onReset={resetBuilder}
+          isSending={isSending}
         />
       )}
       {currentView === 'history' && <HistoryView history={history} onCreate={() => goToView('builder')} />}
