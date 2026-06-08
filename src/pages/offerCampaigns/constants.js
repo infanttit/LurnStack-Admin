@@ -54,5 +54,7 @@ export const pageMeta = {
 export const statusStyles = {
   Draft: 'border-slate-300 bg-white text-slate-700',
   Ready: 'border-slate-900 bg-white text-slate-900',
-  Sent: 'border-slate-500 bg-white text-slate-700',
+  Sending: 'border-amber-200 bg-amber-50 text-amber-800',
+  Sent: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  Failed: 'border-red-200 bg-red-50 text-red-800',
 };

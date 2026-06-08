@@ -116,7 +116,7 @@ const SummaryPanel = ({ form, selectedAudience, selectedCategories, selectedCour
 );
 
 export const BuilderView = (props) => {
-  const { activeStep, form, selectedTemplate, onChange, onHeroImageChange, onSaveTemplate, onBack, onNext, onSaveDraft, onMarkReady, onSend, onReset } = props;
+  const { activeStep, form, selectedTemplate, onChange, onHeroImageChange, onSaveTemplate, onBack, onNext, onSaveDraft, onMarkReady, onSend, onReset, isSending } = props;
 
   return (
     <div className="space-y-6">
@@ -128,7 +128,7 @@ export const BuilderView = (props) => {
               <h2 className="mt-1 text-lg font-bold text-slate-900">{createSteps[activeStep].title}</h2>
               <p className="mt-1 text-sm text-slate-500">{createSteps[activeStep].description}</p>
             </div>
-            <button type="button" onClick={onReset} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400">Clear</button>
+            <button type="button" onClick={onReset} disabled={isSending} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-50 disabled:cursor-not-allowed">Clear</button>
           </div>
           <div className="h-1.5 rounded-full border border-slate-200 bg-white">
             <div className="h-full rounded-full bg-slate-900" style={{ width: `${((activeStep + 1) / createSteps.length) * 100}%` }} />
@@ -150,31 +150,31 @@ export const BuilderView = (props) => {
         </div>
         <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-2">
-            <button type="button" onClick={onBack} disabled={activeStep === 0} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" onClick={onBack} disabled={activeStep === 0 || isSending} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50">
               <ChevronLeft className="h-4 w-4" />
               Back
             </button>
             {activeStep < createSteps.length - 1 && (
-              <button type="button" onClick={onNext} className="inline-flex items-center gap-2 rounded-lg border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-white">
+              <button type="button" onClick={onNext} disabled={isSending} className="inline-flex items-center gap-2 rounded-lg border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50">
                 Next
                 <ChevronRight className="h-4 w-4" />
               </button>
             )}
           </div>
           <div className="grid grid-cols-1 gap-2 sm:flex">
-            <button type="button" onClick={onSaveDraft} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400">
+            <button type="button" onClick={onSaveDraft} disabled={isSending} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50">
               <Save className="h-4 w-4" />
               Save Draft
             </button>
             {activeStep === createSteps.length - 1 && (
               <>
-                <button type="button" onClick={onMarkReady} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900">
+                <button type="button" onClick={onMarkReady} disabled={isSending} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50">
                   <Eye className="h-4 w-4" />
                   Mark Ready
                 </button>
-                <button type="button" onClick={onSend} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900">
+                <button type="button" onClick={onSend} disabled={isSending} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-50">
                   <Send className="h-4 w-4" />
-                  Submit & Send
+                  {isSending ? 'Sending...' : 'Submit & Send'}
                 </button>
               </>
             )}

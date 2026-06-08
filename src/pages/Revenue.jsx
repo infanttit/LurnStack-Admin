@@ -41,7 +41,6 @@ const Revenue = () => {
   const user = useSelector((state) => state.auth?.user);
   
   // React Router Navigation Hooks
-  const { sessionId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -64,22 +63,11 @@ const Revenue = () => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Pricing Form State
-  const [selectedSessionId, setSelectedSessionId] = useState('');
-  const [priceInRupees, setPriceInRupees] = useState('');
-  const [trainerShare, setTrainerShare] = useState('50');
-  const [platformCommission, setPlatformCommission] = useState('50');
-  const [pricingSubmitting, setPricingSubmitting] = useState(false);
-  const [pricingError, setPricingError] = useState('');
-  const [pricingSuccess, setPricingSuccess] = useState('');
-  const [isFlowCollapsed, setIsFlowCollapsed] = useState(false);
-  const [isAlertCollapsed, setIsAlertCollapsed] = useState(false);
-  const [currency, setCurrency] = useState('INR');
-
   // Revenue Details Modal State
   const [detailModalSessionId, setDetailModalSessionId] = useState(null);
   const [sessionRevenueDetails, setSessionRevenueDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [isFlowCollapsed, setIsFlowCollapsed] = useState(false);
 
   // Pagination states
   const [revPage, setRevPage] = useState(1);
@@ -112,27 +100,6 @@ const Revenue = () => {
     loadDashboardData();
   }, []);
 
-  // Auto-populate pricing states when editing a specific session from route parameter
-  useEffect(() => {
-    if (sessionId && sessions.length > 0) {
-      const s = sessions.find((item) => String(item.id || item.sessionId) === String(sessionId));
-      if (s) {
-        setSelectedSessionId(String(s.id || s.sessionId));
-        const price = s.price ?? s.priceInPaise;
-        if (price !== undefined && price !== null) {
-          setPriceInRupees((price / 100).toString());
-        } else {
-          setPriceInRupees('');
-        }
-        setCurrency(s.currency || 'INR');
-        setTrainerShare((s.trainerSharePercentage ?? 50).toString());
-        setPlatformCommission((s.platformCommissionPercentage ?? 50).toString());
-        setPricingError('');
-        setPricingSuccess('');
-      }
-    }
-  }, [sessionId, sessions]);
-
   // Format currency helper (assuming amount is in Paise)
   const formatCurrency = (amountInPaise) => {
     if (amountInPaise === undefined || amountInPaise === null) return '₹0.00';
@@ -143,23 +110,6 @@ const Revenue = () => {
     }).format(rupees);
   };
 
-  // Automatically update platform fee when trainer share changes, and vice-versa
-  const handleTrainerShareChange = (val) => {
-    setTrainerShare(val);
-    const num = Number(val);
-    if (!isNaN(num) && num >= 0 && num <= 100) {
-      setPlatformCommission((100 - num).toString());
-    }
-  };
-
-  const handlePlatformCommissionChange = (val) => {
-    setPlatformCommission(val);
-    const num = Number(val);
-    if (!isNaN(num) && num >= 0 && num <= 100) {
-      setTrainerShare((100 - num).toString());
-    }
-  };
-
   // Sessions without any pricing set by admin (blocking student payments)
   const unpricedSessions = useMemo(() => {
     return sessions.filter((s) => {
@@ -167,78 +117,6 @@ const Revenue = () => {
       return price === undefined || price === null;
     });
   }, [sessions]);
-
-
-  // Submit pricing matrix update (Admin Only)
-  const handleUpdatePricing = async (e) => {
-    e.preventDefault();
-    if (!isAdmin) {
-      setPricingError('Unauthorized: Only platform administrators are permitted to define live pricing.');
-      return;
-    }
-
-    if (!selectedSessionId) {
-      setPricingError('Please select a target session.');
-      return;
-    }
-
-    if (!priceInRupees || isNaN(priceInRupees) || Number(priceInRupees) < 0) {
-      setPricingError('Please enter a valid non-negative price.');
-      return;
-    }
-
-    const tShare = Number(trainerShare);
-    const pComm = Number(platformCommission);
-    if (isNaN(tShare) || isNaN(pComm) || tShare < 0 || pComm < 0 || (tShare + pComm) !== 100) {
-      setPricingError('Split matrix must sum up to exactly 100%.');
-      return;
-    }
-
-    setPricingSubmitting(true);
-    setPricingError('');
-    setPricingSuccess('');
-
-    // Convert Rupees to Paise
-    const priceInPaise = Math.round(Number(priceInRupees) * 100);
-
-    try {
-      const res = await updateSessionPricing(selectedSessionId, {
-        priceInPaise,
-        trainerSharePercentage: tShare,
-        platformCommissionPercentage: pComm,
-        currency: currency
-      });
-
-      if (res?.success) {
-        setPricingSuccess('Pricing configuration and split matrix updated successfully.');
-        
-        // Update local session list with new values
-        setSessions((prev) => 
-          prev.map((s) => 
-            s.id === selectedSessionId || s.sessionId === selectedSessionId
-              ? { 
-                  ...s, 
-                  price: priceInPaise,
-                  priceInPaise,
-                  trainerSharePercentage: tShare,
-                  platformCommissionPercentage: pComm,
-                  currency: currency
-                }
-              : s
-          )
-        );
-
-        // Reset Form partially
-        setPriceInRupees('');
-      } else {
-        throw new Error(res?.message || 'Failed to update pricing on server.');
-      }
-    } catch (err) {
-      setPricingError(getApiErrorMessage(err, 'Failed to update session pricing matrices.'));
-    } finally {
-      setPricingSubmitting(false);
-    }
-  };
 
   // Fetch detailed revenue per session for modal
   const handleViewRevenueDetails = async (sessionId) => {
@@ -362,178 +240,6 @@ const Revenue = () => {
   const paginatedEarnings = useMemo(() => {
     return trainerEarnings.slice(ledgerStartIndex, ledgerEndIndex);
   }, [trainerEarnings, ledgerStartIndex, ledgerEndIndex]);
-
-  // Render dedicated set-price screen if sessionId is present in URL
-  if (sessionId) {
-    if (loading) {
-      return (
-        <div className="py-24 text-center">
-          <div className="inline-block animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-3" />
-          <p className="text-sm text-slate-500 font-medium">Loading session details...</p>
-        </div>
-      );
-    }
-
-    const currentSession = sessions.find((s) => String(s.id || s.sessionId) === String(sessionId));
-
-    if (!currentSession) {
-      return (
-        <div className="max-w-2xl mx-auto py-12 px-4 space-y-6">
-          <button
-            onClick={() => navigate('/revenue', { state: { activeTab: 'pricing' } })}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Revenue Matrices</span>
-          </button>
-          <div className="bg-rose-50 border border-rose-200 rounded-3xl p-6 text-center space-y-4">
-            <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
-            <h3 className="text-lg font-bold text-rose-900">Pricing Matrix Session Not Found</h3>
-            <p className="text-sm text-rose-700">
-              The session ID specified in the URL is invalid or does not match any current session.
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate('/revenue', { state: { activeTab: 'pricing' } })}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Revenue Matrices</span>
-          </button>
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 space-y-8">
-          <div className="border-b border-slate-100 pb-5">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-500/10 text-blue-600 rounded-2xl">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-extrabold text-slate-800">Configure Session Pricing</h2>
-                <p className="text-sm text-slate-400 mt-0.5">Define fee split values and active course rate matrices.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Session Name</p>
-            <h3 className="text-lg font-black text-slate-800">
-              {currentSession.classTitle || currentSession.sessionTitle || currentSession.title}
-            </h3>
-            <p className="text-xs text-slate-500 font-medium">
-              Instructor / Trainer: <span className="font-bold text-slate-700">{currentSession.instructor || currentSession.trainerName || 'No instructor assigned'}</span>
-            </p>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-xs text-blue-700 leading-relaxed">
-            <span className="font-bold">Admin Action Required:</span> Trainers create sessions — <strong>you</strong> set the price. The price you configure here is what students will be charged. Students cannot pay until this is set.
-          </div>
-
-          {!isAdmin && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl flex gap-3">
-              <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="text-xs leading-relaxed">
-                <span className="font-bold">Access Denied:</span> Under strict platform business rules, trainers are prohibited from defining price matrices. You must be an <span className="font-semibold">ADMIN</span> to submit pricing modifications.
-              </div>
-            </div>
-          )}
-
-          {pricingError && (
-            <div className="bg-rose-50 border border-rose-100 text-rose-800 p-4 rounded-2xl text-xs">
-              {pricingError}
-            </div>
-          )}
-
-          {pricingSuccess && (
-            <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-4 rounded-2xl text-xs font-semibold">
-              {pricingSuccess}
-            </div>
-          )}
-
-          <form onSubmit={handleUpdatePricing} className="space-y-6">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Price in {currency === 'INR' ? 'Rupees (₹)' : 'USD ($)'}</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 text-base font-semibold">{currency === 'INR' ? '₹' : '$'}</span>
-                <input
-                  disabled={!isAdmin}
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 100"
-                  value={priceInRupees}
-                  onChange={(e) => setPriceInRupees(e.target.value)}
-                  className="w-full pl-8 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">Sent as minor units (Paise/Cents) to the payment gateway.</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Currency Indicator</label>
-              <select
-                disabled={!isAdmin}
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-semibold text-slate-700 disabled:opacity-50"
-              >
-                <option value="INR">INR (₹)</option>
-                <option value="USD">USD ($)</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Trainer Share (%)</label>
-                <div className="relative">
-                  <input
-                    disabled={!isAdmin}
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={trainerShare}
-                    onChange={(e) => handleTrainerShareChange(e.target.value)}
-                    className="w-full pr-8 pl-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
-                  />
-                  <span className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 text-xs font-bold">%</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Platform Comm (%)</label>
-                <div className="relative">
-                  <input
-                    disabled={!isAdmin}
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={platformCommission}
-                    onChange={(e) => handlePlatformCommissionChange(e.target.value)}
-                    className="w-full pr-8 pl-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-700 disabled:opacity-50"
-                  />
-                  <span className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 text-xs font-bold">%</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!isAdmin || pricingSubmitting}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all shadow-md active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed"
-            >
-              {pricingSubmitting ? 'Submitting Matrix...' : 'Save Pricing Setup'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -815,7 +521,6 @@ const Revenue = () => {
                   <th className="px-6 py-4.5">Platform Comm.</th>
                   <th className="px-6 py-4.5">Configured Price</th>
                   <th className="px-6 py-4.5 text-center">Payment Status</th>
-                  <th className="px-6 py-4.5 text-center">Admin Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white text-slate-650">
@@ -857,26 +562,6 @@ const Revenue = () => {
                             <AlertCircle className="w-3 h-3" />
                             Awaiting Price
                           </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {!hasPricing && isAdmin ? (
-                          <button
-                            onClick={() => navigate(`/revenue/set-price/${s.id || s.sessionId}`)}
-                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all active:scale-95 shadow-md whitespace-nowrap"
-                          >
-                            <Zap className="w-3.5 h-3.5" />
-                            Set Price
-                          </button>
-                        ) : hasPricing && isAdmin ? (
-                          <button
-                            onClick={() => navigate(`/revenue/set-price/${s.id || s.sessionId}`)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl transition-all shadow-sm active:scale-95"
-                          >
-                            Edit
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
                     </tr>
