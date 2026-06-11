@@ -9,7 +9,6 @@ import {
   X, 
   ChevronLeft, 
   ChevronRight,
-  Settings,
   HelpCircle,
   TrendingUp,
   RefreshCcw,
@@ -20,8 +19,7 @@ import { Link } from 'react-router-dom';
 import { 
   fetchAdminPayments, 
   fetchAdminSessions,
-  refundPayment, 
-  updatePaymentSettings 
+  refundPayment
 } from '../api/billing';
 import { getApiErrorMessage } from '../api/axiosClient';
 import ErrorBanner from '../components/ErrorBanner';
@@ -40,12 +38,6 @@ const Payments = () => {
   const [refundFilter, setRefundFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Global settings state
-  const [globalPlatformFee, setGlobalPlatformFee] = useState('');
-  const [updatingSettings, setUpdatingSettings] = useState(false);
-  const [settingsError, setSettingsError] = useState('');
-  const [settingsSuccess, setSettingsSuccess] = useState('');
 
   // Refund processing state (tracks which paymentId is being refunded)
   const [refundProcessingId, setRefundProcessingId] = useState(null);
@@ -146,33 +138,6 @@ const Payments = () => {
       setError(getApiErrorMessage(err, 'Failed to trigger gateway refund. Please check API token permissions.'));
     } finally {
       setRefundProcessingId(null);
-    }
-  };
-
-  // Handle global payment settings update
-  const handleUpdateSettings = async (e) => {
-    e.preventDefault();
-    if (!globalPlatformFee || isNaN(globalPlatformFee) || Number(globalPlatformFee) < 0 || Number(globalPlatformFee) > 100) {
-      setSettingsError('Please enter a valid percentage between 0 and 100.');
-      return;
-    }
-
-    setUpdatingSettings(true);
-    setSettingsError('');
-    setSettingsSuccess('');
-
-    try {
-      const res = await updatePaymentSettings({ globalPlatformFee: Number(globalPlatformFee) });
-      if (res?.success) {
-        setSettingsSuccess('Platform commission rate updated successfully.');
-        setGlobalPlatformFee('');
-      } else {
-        throw new Error(res?.message || 'Failed to update settings');
-      }
-    } catch (err) {
-      setSettingsError(getApiErrorMessage(err, 'Could not save payment configurations.'));
-    } finally {
-      setUpdatingSettings(false);
     }
   };
 
@@ -320,9 +285,9 @@ const Payments = () => {
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Student Ledger & Payments</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Student Ledger & Payments</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Monitor real-time student transactions, coordinate refund gateways, and fine-tune platform fee settings.
+            Review student transactions, payment states, gateway references, and refund actions.
           </p>
         </div>
         <button 
@@ -367,7 +332,7 @@ const Payments = () => {
             </div>
           </div>
           <Link
-            to="/revenue"
+            to="/pending-sessions"
             className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all active:scale-95 shadow-sm whitespace-nowrap"
           >
             <span>Fix Pricing Now</span>
@@ -382,124 +347,64 @@ const Payments = () => {
         </div>
       )}
 
-      {/* Top Section: Overview Cards & Settings */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Financial Overview Cards */}
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-2xl">
+      {/* Ledger Overview */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-start gap-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Settled (Gross)</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">₹{(stats.gross / 100).toFixed(2)}</h3>
-            <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Settled</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(stats.gross)}</h3>
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
               <span>{stats.successfulCount} transactions completed</span>
             </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-amber-500/10 text-amber-600 rounded-2xl">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-start gap-4">
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
             <RotateCcw className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Refunded</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{formatCurrency(stats.refundedAmount)}</h3>
-            <p className="text-xs text-amber-600 mt-1">Returned through Razorpay</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Refunded</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(stats.refundedAmount)}</h3>
+            <p className="text-xs text-slate-500 mt-1">Returned through Razorpay</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-rose-500/10 text-rose-600 rounded-2xl">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-start gap-4">
+          <div className="p-3 bg-rose-50 text-rose-600 rounded-lg">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Failed Attempts</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{stats.failedCount}</h3>
-            <p className="text-xs text-rose-500 mt-1">Declined or aborted payments</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Failed Attempts</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{stats.failedCount}</h3>
+            <p className="text-xs text-slate-500 mt-1">Declined or aborted payments</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-          <div className="p-3 bg-blue-500/10 text-blue-600 rounded-2xl">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-start gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
             <CreditCard className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Payments Recorded</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{payments.length}</h3>
-            <p className="text-xs text-blue-600 mt-1">Logs in system db</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Ledger Records</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{payments.length}</h3>
+            <p className="text-xs text-slate-500 mt-1">Stored payment logs</p>
           </div>
-        </div>
-        </div>
-        
-        {/* Right 1 Col: Global Payment Settings Form */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-              <Settings className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800">Global Payment Settings</h3>
-              <p className="text-xs text-slate-400">Adjust overall platform commission rate.</p>
-            </div>
-          </div>
-
-          {settingsError && (
-            <div className="bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-2xl text-xs">
-              {settingsError}
-            </div>
-          )}
-
-          {settingsSuccess && (
-            <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-3 rounded-2xl text-xs font-medium">
-              {settingsSuccess}
-            </div>
-          )}
-
-          <form onSubmit={handleUpdateSettings} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Global Platform Fee (%)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  placeholder="Enter percentage (e.g. 15)"
-                  value={globalPlatformFee}
-                  onChange={(e) => setGlobalPlatformFee(e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none pr-8 font-semibold text-slate-700"
-                />
-                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 text-sm font-bold">%</span>
-              </div>
-              <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                Adjusting this changes the base rate platform splits for trainer payouts unless overridden in individual session matrices.
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={updatingSettings}
-              className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-[0.98]"
-            >
-              {updatingSettings ? 'Saving...' : 'Apply Fee Adjustment'}
-            </button>
-          </form>
         </div>
       </div>
 
-      {/* Transaction History Table - Full Width */}
+      {/* Payment Ledger */}
       <div className="w-full space-y-4">
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden w-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden w-full">
             {/* Control Bar */}
             <div className="p-6 border-b border-slate-100 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800">Transaction History</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Comprehensive audit trail of Razorpay logs.</p>
+                  <h2 className="text-lg font-bold text-slate-900">Payment Ledger</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Search, filter, and audit student payment records.</p>
                 </div>
                 {/* Search Bar */}
                 <div className="relative w-full sm:w-72 shrink-0">
@@ -644,7 +549,7 @@ const Payments = () => {
                               {sessionTitle}
                             </span>
                           </td>
-                          <td className="px-4 py-3 font-bold text-slate-800">₹{(amount / 100).toFixed(2)}</td>
+                          <td className="px-4 py-3 font-bold text-slate-800">{formatCurrency(amount)}</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold border ${getStatusBadgeClass(status, isRefunded)}`}>
                               {isRefunded ? 'refunded' : status}

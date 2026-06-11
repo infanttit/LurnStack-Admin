@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, Clock3, IndianRupee, KeyRound, Plus, RefreshCw, Video } from 'lucide-react';
 import { createTrainerSession, fetchTrainerSessions } from '../api/trainerSessions';
 import { getApiErrorMessage, trainerTokenStorage } from '../api/axiosClient';
@@ -163,15 +164,31 @@ const TrainerSessions = () => {
               <p className="text-sm text-slate-500">Create sessions and track admin pricing review status.</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={loadSessions}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link
+              to="/trainer/session-earnings"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+            >
+              <IndianRupee className="h-4 w-4" />
+              Session earnings
+            </Link>
+            <Link
+              to="/trainer/payout-request"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+            >
+              <IndianRupee className="h-4 w-4" />
+              Payout request
+            </Link>
+            <button
+              type="button"
+              onClick={loadSessions}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
         </div>
       </header>
 
@@ -328,7 +345,7 @@ const TrainerSessions = () => {
                   const badge = getPricingBadge(session);
                   const BadgeIcon = badge.icon;
                   return (
-                    <article key={session?.id || session?._id || index} className="rounded-2xl border border-slate-200 p-4">
+                    <article key={`${session?.id || session?._id || 'session'}-${index}`} className="rounded-2xl border border-slate-200 p-4">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <h3 className="text-lg font-semibold text-slate-900">{session?.title || 'Untitled Session'}</h3>
