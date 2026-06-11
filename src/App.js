@@ -7,7 +7,7 @@ import CreateLiveClass from './pages/CreateLiveClass';
 import Students from './pages/Students';
 import Trainers from './pages/Trainers';
 import Payments from './pages/Payments';
-import Revenue from './pages/Revenue';
+import TrainerPayouts from './pages/trainerPayouts';
 import Login from './pages/Login';
 import RequireAuth from './components/RequireAuth';
 import PendingSessions from './pages/PendingSessions';
@@ -21,6 +21,8 @@ import SessionAttendanceRoster from './pages/SessionAttendanceRoster';
 import TrainerAttendanceReport from './pages/TrainerAttendanceReport';
 import StudentAttendanceAudit from './pages/StudentAttendanceAudit';
 import TrainerSessions from './pages/TrainerSessions';
+import PayoutRequestPage from './pages/trainerPayments/PayoutRequestPage';
+import SessionEarningsPage from './pages/trainerPayments/SessionEarningsPage';
 
 function App() {
   return (
@@ -29,6 +31,9 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/trainer/sessions" element={<TrainerSessions />} />
+        <Route path="/trainer/session-earnings" element={<SessionEarningsPage />} />
+        <Route path="/trainer/session-earnings/:sessionId" element={<SessionEarningsPage />} />
+        <Route path="/trainer/payout-request" element={<PayoutRequestPage />} />
 
         <Route
           path="/"
@@ -45,7 +50,7 @@ function App() {
           <Route path="students" element={<Students />} />
           <Route path="trainers" element={<Trainers />} />
           <Route path="payments" element={<Payments />} />
-          <Route path="revenue" element={<Revenue />} />
+          <Route path="trainer-payouts" element={<TrainerPayouts />} />
           <Route path="pending-sessions" element={<PendingSessions />} />
           <Route path="offer-campaigns" element={<OfferCampaigns view="campaigns" />} />
           <Route path="offer-campaigns/create" element={<OfferCampaigns view="builder" />} />

@@ -11,7 +11,7 @@ import {
   UserCheck, 
   X, 
   Receipt, 
-  IndianRupee, 
+  HandCoins,
   ClipboardCheck, 
   ChevronLeft, 
   ChevronRight,
@@ -32,7 +32,7 @@ const navItems = [
   { name: 'Students', path: '/students', icon: Users },
   { name: 'Trainers', path: '/trainers', icon: UserCheck },
   { name: 'Payments & Ledger', path: '/payments', icon: Receipt },
-  { name: 'Finances & Revenue', path: '/revenue', icon: IndianRupee },
+  { name: 'Trainer Payouts', path: '/trainer-payouts', icon: HandCoins },
   { name: 'Pending Reviews', path: '/pending-sessions', icon: Clock },
   {
     name: 'Offers & Emails',
