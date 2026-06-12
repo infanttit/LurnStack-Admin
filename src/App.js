@@ -9,7 +9,7 @@ import Trainers from './pages/Trainers';
 import Payments from './pages/Payments';
 import Revenue from './pages/Revenue';
 import Login from './pages/Login';
-import RequireAuth from './components/RequireAuth';
+import RequireAuth from './components/RequireAuth'; 
 import PendingSessions from './pages/PendingSessions';
 import OfferCampaigns from './pages/OfferCampaigns';
 import { ToastContainer } from 'react-toastify';
