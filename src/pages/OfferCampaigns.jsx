@@ -16,11 +16,14 @@ import { BuilderView } from './offerCampaigns/BuilderView';
 import { CampaignsView, HistoryView } from './offerCampaigns/CampaignViews';
 import {
   audienceOptions,
+  emailTemplates,
   initialForm,
   initialTemplate,
   pageMeta,
 } from './offerCampaigns/constants';
 import { buildOfferCtaLink, unwrapCampaign, unwrapList } from './offerCampaigns/utils';
+import darkEmailLogo from '../Assets/Logo/Logo3.png';
+import lightEmailLogo from '../Assets/Logo/Logo4.png';
 
 const normalizeCampaign = (item) => ({
   id: item?.id || item?._id || item?.campaignId,
@@ -51,6 +54,7 @@ const campaignToForm = (campaign) => {
     sessionId: item.sessionId || '',
     audienceType: item.audienceType || 'all_students',
     templateId: item.templateId || initialTemplate.id,
+    templateType: item.templateType || item.templateId || initialTemplate.id,
     showLogo: item.showLogo === false ? 'no' : 'yes',
     theme: item.theme || 'dark',
     heroImage: item.heroImageUrl || item.heroImage || '',
@@ -68,6 +72,31 @@ const normalizeStatus = (status) => {
   if (value === 'ready') return 'ready';
   if (value === 'sent') return 'sent';
   return 'draft';
+};
+
+const EMAIL_LOGO_ALT = 'Tamil Info Technology';
+
+const getAbsoluteAssetUrl = (assetPath) => {
+  if (!assetPath) return '';
+  if (/^https?:\/\//i.test(assetPath)) return assetPath;
+  if (typeof window === 'undefined' || !window.location?.origin) return assetPath;
+  return `${window.location.origin}${assetPath.startsWith('/') ? assetPath : `/${assetPath}`}`;
+};
+
+const getEmailLogoInfo = (formState) => {
+  const logoVariant = formState.theme === 'light' ? 'light' : 'dark';
+  const configuredLogoUrl = logoVariant === 'dark'
+    ? process.env.REACT_APP_EMAIL_LOGO_DARK_URL
+    : process.env.REACT_APP_EMAIL_LOGO_LIGHT_URL;
+  const bundledLogoUrl = logoVariant === 'dark' ? darkEmailLogo : lightEmailLogo;
+  const logoUrl = configuredLogoUrl || getAbsoluteAssetUrl(bundledLogoUrl);
+
+  return {
+    logoVariant,
+    logoAssetKey: logoVariant === 'dark' ? 'Logo3.png' : 'Logo4.png',
+    logoAlt: EMAIL_LOGO_ALT,
+    logoUrl: formState.showLogo === 'yes' ? (logoUrl || '') : '',
+  };
 };
 
 const getTargetArray = (targets, ...keys) => {
@@ -113,7 +142,7 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
   const currentView = pageMeta[view] ? view : 'campaigns';
   const [activeStep, setActiveStep] = useState(0);
   const [form, setForm] = useState(initialForm);
-  const [templateList] = useState([initialTemplate]);
+  const [templateList] = useState(emailTemplates);
   const [targetData, setTargetData] = useState({
     categories: [],
     courses: [],
@@ -341,6 +370,19 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
       setForm((prev) => ({ ...prev, courseId: value, sessionId: '' }));
       return;
     }
+    if (name === 'templateType') {
+      const template = emailTemplates.find((item) => item.id === value) || initialTemplate;
+      setForm((prev) => ({
+        ...prev,
+        templateType: value,
+        templateId: value,
+        subject: template.subject,
+        heading: template.heading,
+        body: template.body,
+        buttonText: template.buttonText,
+      }));
+      return;
+    }
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -393,6 +435,7 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
     sessionId: form.sessionId,
     audienceType: form.audienceType,
     templateId: form.templateId,
+    templateType: form.templateType,
     subject: form.subject.trim(),
     heading: form.heading.trim(),
     body: form.body.trim(),
@@ -400,6 +443,7 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
     buttonLink: form.buttonLink,
     showLogo: form.showLogo === 'yes',
     theme: form.theme,
+    ...getEmailLogoInfo(form),
     status: normalizeStatus(status),
     heroImageFile: form.heroImageFile,
   });

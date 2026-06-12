@@ -1,10 +1,16 @@
 import { axiosClient } from './axiosClient';
 
-// NOTE: Your backend may not expose a list endpoint at the same base as create/update/delete.
-// Configure these in `.env` without changing code when needed.
 const LIVE_CLASSES_BASE_PATH = process.env.REACT_APP_LIVE_CLASSES_BASE_PATH || '/api/admin/live-classes';
-// Your backend list endpoint is student-side. Override via env if needed.
-const LIVE_CLASSES_LIST_PATH = process.env.REACT_APP_LIVE_CLASS_LIST_PATH || '/api/student/live-classes';
+// Keep the admin Live Classes page scoped to classes created by admins.
+// Course/student session listings should be handled by the course module, not this page.
+const configuredLiveClassListPath = process.env.REACT_APP_LIVE_CLASS_LIST_PATH || '';
+const LIVE_CLASSES_LIST_PATHS = configuredLiveClassListPath
+  ? [configuredLiveClassListPath]
+  : [
+      '/api/admin/get-live-classes',
+      '/api/admin/list-live-classes',
+      LIVE_CLASSES_BASE_PATH,
+    ];
 
 const normalizeId = (id) => encodeURIComponent(String(id));
 
@@ -42,8 +48,22 @@ const toFormData = (payload) => {
 };
 
 export const listLiveClassesApi = async () => {
-  const res = await axiosClient.get(LIVE_CLASSES_LIST_PATH);
-  return res.data;
+  let lastError;
+
+  for (const path of LIVE_CLASSES_LIST_PATHS) {
+    try {
+      const res = await axiosClient.get(path);
+      return res.data;
+    } catch (error) {
+      lastError = error;
+      const status = error?.response?.status;
+      if (configuredLiveClassListPath || (status !== 404 && status !== 405)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
 };
 
 export const getLiveClassApi = async (id) => {

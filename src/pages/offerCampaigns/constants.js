@@ -6,13 +6,25 @@ export const createSteps = [
 ];
 
 export const initialTemplate = {
-  id: 'fixed-offer',
-  name: 'LurnStack Offer Template',
+  id: 'offer',
+  name: 'Offer Template',
   subject: 'Special offer for your next LurnStack session',
   heading: 'Your learning offer is ready',
   body: 'We selected this offer based on your learning interest. Reserve your seat before the offer expires.',
   buttonText: 'View Offer',
 };
+
+export const emailTemplates = [
+  initialTemplate,
+  {
+    id: 'session_intimation',
+    name: 'Session Intimation Template',
+    subject: 'Your LurnStack session seat is confirmed',
+    heading: 'Your seat has been confirmed',
+    body: 'Your seat has been confirmed for today’s session. We are going live soon. Join on time and keep your notebook ready.',
+    buttonText: 'Join Live Now',
+  },
+];
 
 export const audienceOptions = [
   { id: 'all_students', label: 'All registered students' },
@@ -34,6 +46,7 @@ export const initialForm = {
   sessionId: '',
   audienceType: audienceOptions[0].id,
   templateId: initialTemplate.id,
+  templateType: initialTemplate.id,
   showLogo: 'yes',
   theme: 'dark',
   heroImage: '',
