@@ -10,7 +10,7 @@ import Trainers from './pages/Trainers';
 import Payments from './pages/Payments';
 import TrainerPayouts from './pages/trainerPayouts';
 import Login from './pages/Login';
-import RequireAuth from './components/RequireAuth';
+import RequireAuth from './components/RequireAuth'; 
 import PendingSessions from './pages/PendingSessions';
 import OfferCampaigns from './pages/OfferCampaigns';
 import { ToastContainer } from 'react-toastify';
