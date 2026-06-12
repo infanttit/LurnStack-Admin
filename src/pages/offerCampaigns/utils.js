@@ -1,4 +1,5 @@
 const STUDENT_APP_URL = (process.env.REACT_APP_STUDENT_APP_URL || 'https://lurnstack.com').replace(/\/+$/, '');
+const STUDENT_LOGIN_PATH = process.env.REACT_APP_STUDENT_LOGIN_PATH || '/login';
 
 export const slugify = (value) =>
   String(value || 'general')
@@ -8,11 +9,14 @@ export const slugify = (value) =>
     .replace(/^-+|-+$/g, '') || 'general';
 
 export const buildOfferCtaLink = ({ categoryIds = [], courseId = '', sessionId = '' }) => {
-  if (sessionId) return `${STUDENT_APP_URL}/sessions/${encodeURIComponent(sessionId)}`;
-  if (courseId) return `${STUDENT_APP_URL}/courses/${encodeURIComponent(courseId)}`;
-  if (categoryIds.length === 1) return `${STUDENT_APP_URL}/categories/${encodeURIComponent(categoryIds[0])}`;
-  if (categoryIds.length > 1) return `${STUDENT_APP_URL}/categories?ids=${encodeURIComponent(categoryIds.join(','))}`;
-  return `${STUDENT_APP_URL}/categories`;
+  let targetPath = '/categories';
+  if (sessionId) targetPath = `/sessions/${encodeURIComponent(sessionId)}`;
+  else if (courseId) targetPath = `/courses/${encodeURIComponent(courseId)}`;
+  else if (categoryIds.length === 1) targetPath = `/categories/${encodeURIComponent(categoryIds[0])}`;
+  else if (categoryIds.length > 1) targetPath = `/categories?ids=${encodeURIComponent(categoryIds.join(','))}`;
+
+  const separator = STUDENT_LOGIN_PATH.includes('?') ? '&' : '?';
+  return `${STUDENT_APP_URL}${STUDENT_LOGIN_PATH}${separator}redirect=${encodeURIComponent(targetPath)}`;
 };
 
 export const formatDiscount = (form) => {

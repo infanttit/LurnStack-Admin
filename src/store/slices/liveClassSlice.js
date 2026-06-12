@@ -12,7 +12,11 @@ const unwrapApiList = (json) => {
   if (!json) return [];
   if (Array.isArray(json)) return json;
   if (Array.isArray(json?.data)) return json.data;
+  if (Array.isArray(json?.data?.liveClasses)) return json.data.liveClasses;
+  if (Array.isArray(json?.data?.classes)) return json.data.classes;
+  if (Array.isArray(json?.data?.items)) return json.data.items;
   if (Array.isArray(json?.classes)) return json.classes;
+  if (Array.isArray(json?.liveClasses)) return json.liveClasses;
   if (Array.isArray(json?.items)) return json.items;
   return [];
 };
@@ -28,37 +32,37 @@ export const fetchLiveClasses = createAsyncThunk('liveClasses/fetchAll', async (
     const json = await listLiveClassesApi();
     return unwrapApiList(json);
   } catch (error) {
-    return rejectWithValue(getApiErrorMessage(error, 'Failed to fetch live classes. If this is 401, set the correct Bearer token for the endpoint (student vs admin).'));
+    return rejectWithValue(getApiErrorMessage(error, 'Failed to fetch admin-created TIT classes.'));
   }
 });
 
 export const createLiveClass = createAsyncThunk('liveClasses/create', async (classData, { rejectWithValue }) => {
   try {
     const json = await createLiveClassApi(classData);
-    if (json?.success === false) return rejectWithValue(json?.message || 'Failed to create live class');
+    if (json?.success === false) return rejectWithValue(json?.message || 'Failed to create TIT class');
     return unwrapApiObject(json);
   } catch (error) {
-    return rejectWithValue(getApiErrorMessage(error, 'Failed to create live class'));
+    return rejectWithValue(getApiErrorMessage(error, 'Failed to create TIT class'));
   }
 });
 
 export const updateLiveClass = createAsyncThunk('liveClasses/update', async ({ id, data }, { rejectWithValue }) => {
   try {
     const json = await updateLiveClassApi(id, data);
-    if (json?.success === false) return rejectWithValue(json?.message || 'Failed to update live class');
+    if (json?.success === false) return rejectWithValue(json?.message || 'Failed to update TIT class');
     return unwrapApiObject(json);
   } catch (error) {
-    return rejectWithValue(getApiErrorMessage(error, 'Failed to update live class'));
+    return rejectWithValue(getApiErrorMessage(error, 'Failed to update TIT class'));
   }
 });
 
 export const deleteLiveClass = createAsyncThunk('liveClasses/delete', async (id, { rejectWithValue }) => {
   try {
     const json = await deleteLiveClassApi(id);
-    if (!json?.success) return rejectWithValue(json?.message || 'Failed to delete live class');
+    if (!json?.success) return rejectWithValue(json?.message || 'Failed to delete TIT class');
     return id;
   } catch (error) {
-    return rejectWithValue(getApiErrorMessage(error, 'Failed to delete live class'));
+    return rejectWithValue(getApiErrorMessage(error, 'Failed to delete TIT class'));
   }
 });
 

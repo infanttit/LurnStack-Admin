@@ -7,7 +7,6 @@ import {
   Settings, 
   BookOpen, 
   LogOut, 
-  UsersRound, 
   UserCheck, 
   X, 
   Receipt, 
@@ -26,8 +25,7 @@ import { logout } from '../store/slices/authSlice';
 const navItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Courses', path: '/courses', icon: BookOpen },
-  { name: 'Live Classes', path: '/live-classes', icon: Video },
-  { name: 'Collaborative', path: '/collaborative', icon: UsersRound },
+  { name: 'TIT Classes', path: '/live-classes', icon: Video },
   { name: 'Attendance', path: '/attendance', icon: ClipboardCheck },
   { name: 'Students', path: '/students', icon: Users },
   { name: 'Trainers', path: '/trainers', icon: UserCheck },

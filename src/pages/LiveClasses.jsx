@@ -8,6 +8,12 @@ import { resolveAssetUrl } from '../api/axiosClient';
 const PAGE_SIZE = 8;
 
 const safeLower = (value) => String(value || '').toLowerCase();
+const getTitle = (cls) => cls?.classTitle || cls?.title || 'Untitled TIT Class';
+const getCourse = (cls) => cls?.courseName || cls?.course?.name || cls?.courseTitle || '-';
+const getInstructor = (cls) => cls?.instructor || cls?.trainerName || cls?.trainer?.name || '-';
+const getMeetLink = (cls) => cls?.meetLink || cls?.meetingLink || '';
+const getStartTime = (cls) => cls?.time || cls?.startTime || '-';
+const getEndTime = (cls) => cls?.endTime || '';
 
 const LiveClasses = () => {
   const dispatch = useDispatch();
@@ -23,7 +29,7 @@ const LiveClasses = () => {
   }, [dispatch]);
 
   const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this live class?')) {
+    if (window.confirm('Are you sure you want to delete this TIT class session?')) {
       dispatch(deleteLiveClass(id));
     }
   };
@@ -48,11 +54,11 @@ const LiveClasses = () => {
       const q = safeLower(searchTerm).trim();
       const matchesSearch =
         !q ||
-        safeLower(c?.classTitle).includes(q) ||
-        safeLower(c?.courseName).includes(q) ||
-        safeLower(c?.instructor).includes(q);
+        safeLower(getTitle(c)).includes(q) ||
+        safeLower(getCourse(c)).includes(q) ||
+        safeLower(getInstructor(c)).includes(q);
 
-      const matchesCourse = !selectedCourse || String(c?.courseName || '').trim() === selectedCourse;
+      const matchesCourse = !selectedCourse || String(getCourse(c)).trim() === selectedCourse;
 
       const status = getStatus(c);
       const matchesStatus = !selectedStatus || status === selectedStatus;
@@ -62,7 +68,7 @@ const LiveClasses = () => {
   );
 
   const courseOptions = Array.from(
-    new Set((classes || []).map((c) => String(c?.courseName || '').trim()).filter(Boolean))
+    new Set((classes || []).map((c) => String(getCourse(c) || '').trim()).filter(Boolean))
   ).sort((a, b) => a.localeCompare(b));
 
   useEffect(() => {
@@ -109,8 +115,8 @@ const LiveClasses = () => {
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Live Classes</h1>
-          <p className="text-gray-500 mt-1">Create, update, and manage live sessions securely.</p>
+          <h1 className="text-2xl font-bold text-gray-900">TIT Classes</h1>
+          <p className="text-gray-500 mt-1">Create and manage admin TIT sessions for the student TIT Classes section.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -138,7 +144,7 @@ const LiveClasses = () => {
             <input
               type="text"
               className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
-              placeholder="Search classes..."
+              placeholder="Search TIT classes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -201,13 +207,13 @@ const LiveClasses = () => {
               {loading ? (
                 <tr>
                   <td colSpan="6" className="p-8 text-center text-gray-500">
-                    Loading classes...
+                    Loading TIT classes...
                   </td>
                 </tr>
               ) : paginatedClasses.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="p-8 text-center text-gray-500">
-                    No live classes found.
+                    No TIT classes found.
                   </td>
                 </tr>
               ) : (
@@ -223,26 +229,28 @@ const LiveClasses = () => {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{cls.classTitle}</p>
-                          <p className="text-xs text-gray-500 truncate">{cls.courseName}</p>
+                          <p className="font-medium text-gray-900 truncate">{getTitle(cls)}</p>
+                          <p className="text-xs text-gray-500 truncate">{getCourse(cls)}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 text-gray-700">{cls.instructor || '-'}</td>
+                    <td className="p-4 text-gray-700">{getInstructor(cls)}</td>
                     <td className="p-4">
                       <p className="text-gray-900">{cls.date || '-'}</p>
-                      <p className="text-xs text-gray-500">{cls.time || '-'} ({cls.duration || '-'})</p>
+                      <p className="text-xs text-gray-500">
+                        {getStartTime(cls)}{getEndTime(cls) ? ` - ${getEndTime(cls)}` : ''} ({cls.duration || '-'})
+                      </p>
                     </td>
                     <td className="p-4">
-                      {cls.meetLink ? (
+                      {getMeetLink(cls) ? (
                         <a
-                          href={cls.meetLink}
+                          href={getMeetLink(cls)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800"
                         >
                           <LinkIcon className="w-4 h-4" />
-                          <span className="truncate w-24 inline-block align-bottom">{cls.meetLink}</span>
+                          <span className="truncate w-24 inline-block align-bottom">{getMeetLink(cls)}</span>
                         </a>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -288,9 +296,9 @@ const LiveClasses = () => {
         {/* Mobile cards */}
         <div className="md:hidden divide-y divide-gray-100">
           {loading ? (
-            <div className="p-6 text-center text-gray-500 text-sm">Loading classes...</div>
+            <div className="p-6 text-center text-gray-500 text-sm">Loading TIT classes...</div>
           ) : paginatedClasses.length === 0 ? (
-            <div className="p-6 text-center text-gray-500 text-sm">No live classes found.</div>
+            <div className="p-6 text-center text-gray-500 text-sm">No TIT classes found.</div>
           ) : (
             paginatedClasses.map((cls) => {
               const status = getStatus(cls);
@@ -305,12 +313,12 @@ const LiveClasses = () => {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-900 truncate">{cls.classTitle}</p>
-                      <p className="text-xs text-gray-500 truncate">{cls.courseName}</p>
+                      <p className="font-semibold text-gray-900 truncate">{getTitle(cls)}</p>
+                      <p className="text-xs text-gray-500 truncate">{getCourse(cls)}</p>
                       <div className="mt-2 text-xs text-gray-600 space-y-1">
                         <div className="flex justify-between gap-3">
                           <span className="text-gray-500">Instructor</span>
-                          <span className="truncate">{cls.instructor || '-'}</span>
+                          <span className="truncate">{getInstructor(cls)}</span>
                         </div>
                         <div className="flex justify-between gap-3">
                           <span className="text-gray-500">Date</span>
@@ -318,7 +326,9 @@ const LiveClasses = () => {
                         </div>
                         <div className="flex justify-between gap-3">
                           <span className="text-gray-500">Time</span>
-                          <span className="truncate">{cls.time || '-'}</span>
+                          <span className="truncate">
+                            {getStartTime(cls)}{getEndTime(cls) ? ` - ${getEndTime(cls)}` : ''}
+                          </span>
                         </div>
                       </div>
                       <div className="mt-3 flex items-center justify-between gap-3">
@@ -344,15 +354,15 @@ const LiveClasses = () => {
                           </button>
                         </div>
                       </div>
-                      {cls.meetLink ? (
+                      {getMeetLink(cls) ? (
                         <a
-                          href={cls.meetLink}
+                          href={getMeetLink(cls)}
                           target="_blank"
                           rel="noreferrer"
                           className="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
                         >
                           <LinkIcon className="w-4 h-4" />
-                          <span className="truncate max-w-[260px]">{cls.meetLink}</span>
+                          <span className="truncate max-w-[260px]">{getMeetLink(cls)}</span>
                         </a>
                       ) : null}
                     </div>

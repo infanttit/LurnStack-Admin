@@ -4,6 +4,7 @@ import AdminLayout from './layouts/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import LiveClasses from './pages/LiveClasses';
 import CreateLiveClass from './pages/CreateLiveClass';
+import Courses from './pages/Courses';
 import Students from './pages/Students';
 import Trainers from './pages/Trainers';
 import Payments from './pages/Payments';
@@ -56,8 +57,7 @@ function App() {
           <Route path="offer-campaigns/create" element={<OfferCampaigns view="builder" />} />
           <Route path="offer-campaigns/history" element={<OfferCampaigns view="history" />} />
 
-          <Route path="collaborative" element={<div className="p-8">Collaborative Module Placeholder</div>} />
-          <Route path="courses" element={<div className="p-8">Courses Module Placeholder</div>} />
+          <Route path="courses" element={<Courses />} />
           <Route path="settings" element={<div className="p-8">Settings Module Placeholder</div>} />
           
           {/* Attendance Routes */}

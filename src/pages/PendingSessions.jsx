@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { fetchPendingSessionsApi, reviewSessionApi } from '../api/liveClasses';
 import { updateSessionPricing } from '../api/billing';
 import { getApiErrorMessage } from '../api/axiosClient';
@@ -12,14 +12,91 @@ import {
   Sparkles, 
   Loader2, 
   CheckCircle,
-  ShieldAlert
+  ShieldAlert,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import PricingModal from '../components/PricingModal';
+
+const PAGE_SIZE = 10;
+
+const safeText = (value, fallback = '') => {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+};
+
+const safeLower = (value) => safeText(value).toLowerCase();
+
+const getSessionId = (session, index = 0) => safeText(session?.id || session?._id || session?.sessionId, `session-${index}`);
+
+const getSessionTitle = (session) => safeText(session?.title || session?.classTitle || session?.sessionTitle, 'Untitled Session');
+
+const getTrainerName = (session) =>
+  safeText(session?.trainerName || session?.instructor || session?.trainer?.name || session?.trainer?.fullName, 'N/A');
+
+const getCategory = (session) =>
+  safeText(session?.category || session?.courseName || session?.course?.name || session?.courseTitle, 'General');
+
+const getSourceLabel = (session) => {
+  const source = safeLower(session?.source);
+  const sectionType = safeLower(session?.sectionType || session?.sessionType);
+  const role = safeLower(session?.createdByRole);
+  if (source.includes('admin_tit') || sectionType === 'tit' || role === 'admin') return 'Admin TIT';
+  return 'Trainer';
+};
+
+const getScheduleText = (session) => {
+  if (Array.isArray(session?.scheduledDates) && session.scheduledDates.length > 0) {
+    const first = session.scheduledDates[0];
+    const date = first?.date ? new Date(first.date) : null;
+    const dateText = date && !Number.isNaN(date.getTime())
+      ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      : safeText(first?.date, 'TBD');
+    return `${dateText}${first?.time ? ` at ${first.time}` : ''}`;
+  }
+
+  const date = safeText(session?.date || session?.scheduledDate || session?.startDate);
+  const start = safeText(session?.startTime || session?.time);
+  const end = safeText(session?.endTime);
+  if (!date && !start) return 'TBD';
+  return `${date || 'TBD'}${start ? `, ${start}${end ? ` - ${end}` : ''}` : ''}`;
+};
+
+const toDateKey = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getSessionDateKey = (session) => {
+  if (Array.isArray(session?.scheduledDates) && session.scheduledDates.length > 0) {
+    return toDateKey(session.scheduledDates[0]?.date);
+  }
+  return toDateKey(session?.date || session?.scheduledDate || session?.startDate || session?.createdAt);
+};
+
+const addDays = (date, days) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
 
 const PendingSessions = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [datePreset, setDatePreset] = useState('all');
+  const [customDate, setCustomDate] = useState('');
+  const [page, setPage] = useState(1);
   
   // Modal / Review state
   const [reviewingSession, setReviewingSession] = useState(null);
@@ -84,6 +161,88 @@ const PendingSessions = () => {
     }
   };
 
+  const rows = useMemo(() => {
+    return sessions.map((session, index) => ({
+      session,
+      id: getSessionId(session, index),
+      title: getSessionTitle(session),
+      trainerName: getTrainerName(session),
+      category: getCategory(session),
+      source: getSourceLabel(session),
+      schedule: getScheduleText(session),
+      dateKey: getSessionDateKey(session),
+      description: safeText(session?.description, 'No description provided.'),
+    }));
+  }, [sessions]);
+
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.category).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [rows]
+  );
+
+  const filteredRows = useMemo(() => {
+    const value = safeLower(query);
+    const todayKey = toDateKey(new Date());
+    const yesterdayKey = toDateKey(addDays(new Date(), -1));
+    return rows.filter((row) => {
+      const matchesQuery =
+        !value ||
+        safeLower(row.title).includes(value) ||
+        safeLower(row.trainerName).includes(value) ||
+        safeLower(row.category).includes(value) ||
+        safeLower(row.id).includes(value) ||
+        safeLower(row.description).includes(value);
+      const matchesSource = sourceFilter === 'all' || row.source === sourceFilter;
+      const matchesCategory = categoryFilter === 'all' || row.category === categoryFilter;
+      const matchesDate =
+        datePreset === 'all' ||
+        (datePreset === 'today' && row.dateKey === todayKey) ||
+        (datePreset === 'yesterday' && row.dateKey === yesterdayKey) ||
+        (datePreset === 'custom' && customDate && row.dateKey === customDate);
+      return matchesQuery && matchesSource && matchesCategory && matchesDate;
+    });
+  }, [rows, query, sourceFilter, categoryFilter, datePreset, customDate]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, sourceFilter, categoryFilter, datePreset, customDate]);
+
+  const totalEntries = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / PAGE_SIZE));
+
+  useEffect(() => {
+    setPage((prev) => Math.min(Math.max(1, prev), totalPages));
+  }, [totalPages]);
+
+  const startIndex = totalEntries ? (page - 1) * PAGE_SIZE : 0;
+  const endIndex = Math.min(startIndex + PAGE_SIZE, totalEntries);
+  const paginatedRows = filteredRows.slice(startIndex, endIndex);
+
+  const filtersActive = query || sourceFilter !== 'all' || categoryFilter !== 'all' || datePreset !== 'all' || customDate;
+
+  const clearFilters = () => {
+    setQuery('');
+    setSourceFilter('all');
+    setCategoryFilter('all');
+    setDatePreset('all');
+    setCustomDate('');
+  };
+
+  const getPageItems = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+    const items = new Set([1, totalPages]);
+    for (let p = page - 1; p <= page + 1; p += 1) {
+      if (p > 1 && p < totalPages) items.add(p);
+    }
+    const sorted = Array.from(items).sort((a, b) => a - b);
+    const withGaps = [];
+    sorted.forEach((item, index) => {
+      if (index > 0 && item - sorted[index - 1] > 1) withGaps.push('gap');
+      withGaps.push(item);
+    });
+    return withGaps;
+  };
+
   return (
     <div className="space-y-8 pb-12">
       {/* Header Section */}
@@ -140,75 +299,207 @@ const PendingSessions = () => {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sessions.map((session) => (
-            <div 
-              key={session.id} 
-              className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200/80 transition-all duration-200 overflow-hidden flex flex-col justify-between"
-            >
-              {/* Card Header & Main Info */}
-              <div className="p-6 space-y-4">
-                <div className="flex justify-between items-start gap-2">
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    Pending Price
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">ID: {session.id.toString().substring(0, 8)}...</span>
-                </div>
-
-                <div className="space-y-1">
-                  <h3 className="font-bold text-slate-800 text-base leading-snug line-clamp-2" title={session.title}>
-                    {session.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 line-clamp-1">{session.description || 'No description provided.'}</p>
-                </div>
-
-                <hr className="border-slate-100" />
-
-                {/* Details list */}
-                <div className="space-y-2.5 text-sm text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="truncate">
-                      Trainer: <strong className="text-slate-800 font-semibold">{session.trainerName || 'N/A'}</strong>
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span>
-                      Category: <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-xs font-semibold">{session.category || 'General'}</span>
-                    </span>
-                  </div>
-
-                  {session.scheduledDates && Array.isArray(session.scheduledDates) && session.scheduledDates.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <Calendar className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                      <div className="text-xs text-slate-500 space-y-0.5">
-                        <span className="font-bold text-slate-700 block">Scheduled Times:</span>
-                        {session.scheduledDates.map((dateObj, idx) => (
-                          <div key={idx} className="bg-slate-50/80 px-2 py-1 rounded border border-slate-100">
-                            {new Date(dateObj.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at {dateObj.time}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-slate-50/70 p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_190px_150px_150px_110px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search session, trainer, category, ID"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500"
+                />
               </div>
 
-              {/* Action Footer */}
-              <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex items-center justify-end">
-                <button
-                  onClick={() => openReviewModal(session)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm hover:shadow active:scale-95 inline-flex items-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Review & Publish
-                </button>
-              </div>
+              <select
+                value={sourceFilter}
+                onChange={(event) => setSourceFilter(event.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Sources</option>
+                <option value="Trainer">Trainer</option>
+                <option value="Admin TIT">Admin TIT</option>
+              </select>
+
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Categories</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+
+              <select
+                value={datePreset}
+                onChange={(event) => {
+                  setDatePreset(event.target.value);
+                  if (event.target.value !== 'custom') setCustomDate('');
+                }}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="custom">Custom Date</option>
+              </select>
+
+              <input
+                type="date"
+                value={customDate}
+                onChange={(event) => {
+                  setCustomDate(event.target.value);
+                  setDatePreset(event.target.value ? 'custom' : 'all');
+                }}
+                disabled={datePreset !== 'custom'}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+              />
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                disabled={!filtersActive}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+                Clear
+              </button>
             </div>
-          ))}
+          </div>
+
+          <div className="w-full">
+            <table className="w-full table-fixed text-left text-sm">
+              <colgroup>
+                <col className="w-[5%]" />
+                <col className="w-[27%]" />
+                <col className="w-[16%]" />
+                <col className="w-[14%]" />
+                <col className="w-[18%]" />
+                <col className="w-[10%]" />
+                <col className="w-[10%]" />
+              </colgroup>
+              <thead className="bg-white text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-bold">No.</th>
+                  <th className="px-4 py-3 font-bold">Session</th>
+                  <th className="px-4 py-3 font-bold">Trainer</th>
+                  <th className="px-4 py-3 font-bold">Category</th>
+                  <th className="px-4 py-3 font-bold">Schedule</th>
+                  <th className="px-4 py-3 font-bold">Source</th>
+                  <th className="px-4 py-3 text-right font-bold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-12 text-center text-sm font-semibold text-slate-500">
+                      No pending sessions match the selected filters.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedRows.map((row, index) => (
+                    <tr key={row.id} className="align-middle transition hover:bg-slate-50">
+                      <td className="px-4 py-4 font-bold text-slate-900">{startIndex + index + 1}</td>
+                      <td className="px-4 py-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                              Pending Price
+                            </span>
+                            <span className="truncate font-mono text-[11px] text-slate-400">ID: {row.id.substring(0, 8)}</span>
+                          </div>
+                          <p className="mt-1 truncate font-bold text-slate-900" title={row.title}>{row.title}</p>
+                          <p className="mt-0.5 truncate text-xs text-slate-500" title={row.description}>{row.description}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="flex min-w-0 items-center gap-2 text-slate-700">
+                          <User className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span className="truncate" title={row.trainerName}>{row.trainerName}</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex max-w-full items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                          <Tag className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate" title={row.category}>{row.category}</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="flex min-w-0 items-center gap-2 text-slate-700">
+                          <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span className="truncate" title={row.schedule}>{row.schedule}</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                          row.source === 'Admin TIT' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'
+                        }`}>
+                          {row.source}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <button
+                          onClick={() => openReviewModal(row.session)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 active:scale-95"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              Showing {totalEntries ? startIndex + 1 : 0} to {endIndex} of {totalEntries} entries
+            </div>
+            <div className="flex items-center justify-between gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                disabled={page <= 1 || totalEntries === 0}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {getPageItems().map((item, index) =>
+                  item === 'gap' ? (
+                    <span key={`gap-${index}`} className="px-2 text-slate-400">...</span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPage(item)}
+                      disabled={totalEntries === 0}
+                      className={`min-w-[36px] rounded-lg border px-3 py-1.5 font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 ${
+                        item === page ? 'border-blue-100 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                disabled={page >= totalPages || totalEntries === 0}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
