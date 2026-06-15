@@ -7,6 +7,10 @@ const PricingModal = ({ isOpen, session, onClose, onSave, isSaving }) => {
   const [trainerShare, setTrainerShare] = useState('50');
   const [platformCommission, setPlatformCommission] = useState('50');
   const [error, setError] = useState('');
+  const [enableWhatsApp, setEnableWhatsApp] = useState(true);
+  const [whatsappTemplateName, setWhatsappTemplateName] = useState('');
+  const [whatsappCustomTitle, setWhatsappCustomTitle] = useState('');
+  const [whatsappButtonUrl, setWhatsappButtonUrl] = useState('');
 
   useEffect(() => {
     if (session) {
@@ -15,6 +19,10 @@ const PricingModal = ({ isOpen, session, onClose, onSave, isSaving }) => {
       setTrainerShare(String(session.trainerSharePercentage ?? 50));
       setPlatformCommission(String(session.platformCommissionPercentage ?? 50));
       setError('');
+      setEnableWhatsApp(session.enableWhatsApp ?? true);
+      setWhatsappTemplateName(session.whatsappTemplateName ?? '');
+      setWhatsappCustomTitle(session.whatsappCustomTitle ?? '');
+      setWhatsappButtonUrl(session.whatsappButtonUrl ?? '');
     }
   }, [session, isOpen]);
 
@@ -56,6 +64,10 @@ const PricingModal = ({ isOpen, session, onClose, onSave, isSaving }) => {
       currency,
       trainerSharePercentage: tShare,
       platformCommissionPercentage: pComm,
+      enableWhatsApp,
+      whatsappTemplateName,
+      whatsappCustomTitle,
+      whatsappButtonUrl,
     });
   };
 
@@ -63,7 +75,7 @@ const PricingModal = ({ isOpen, session, onClose, onSave, isSaving }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
-      <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 p-8 space-y-6 animate-in fade-in zoom-in duration-200">
+      <div className="relative bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl border border-slate-100 p-8 space-y-6 animate-in fade-in zoom-in duration-200">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -121,7 +133,14 @@ const PricingModal = ({ isOpen, session, onClose, onSave, isSaving }) => {
                   step="0.01"
                   placeholder="e.g. 499"
                   value={price}
-                  onChange={(e) => setPrice(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPrice(val);
+                    const parsed = parseFloat(val);
+                    if (!isNaN(parsed)) {
+                      setEnableWhatsApp(parsed === 0);
+                    }
+                  }}
                   disabled={isSaving}
                   className="w-full pl-8 pr-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-semibold text-slate-705 disabled:opacity-50"
                 />
@@ -188,6 +207,60 @@ const PricingModal = ({ isOpen, session, onClose, onSave, isSaving }) => {
           <p className="text-[10px] text-slate-400 leading-normal">
             * Note: Price will be converted to subunits (paisa/cents) for secure gateway processing. Entering 0 configures this session as a **Free Session**.
           </p>
+
+          <div className="border-t border-slate-100 pt-4 space-y-3">
+            <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 cursor-pointer">
+              <input
+                name="enableWhatsApp"
+                type="checkbox"
+                checked={enableWhatsApp}
+                onChange={(e) => setEnableWhatsApp(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="font-semibold">Enable WhatsApp Reminders</span>
+            </label>
+
+            {enableWhatsApp && (
+              <div className="space-y-3 pl-2 border-l-2 border-blue-100">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Template Name Override
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. lurnstack_custom"
+                    value={whatsappTemplateName}
+                    onChange={(e) => setWhatsappTemplateName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-semibold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Custom Title Override
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Advanced JS Masterclass"
+                    value={whatsappCustomTitle}
+                    onChange={(e) => setWhatsappCustomTitle(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-semibold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Button URL/Path Override
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. js-course"
+                    value={whatsappButtonUrl}
+                    onChange={(e) => setWhatsappButtonUrl(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-semibold"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">

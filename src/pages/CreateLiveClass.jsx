@@ -61,6 +61,8 @@ const CreateLiveClass = () => {
     thumbnail: '', // URL or relative path
     isRecurring: false,
     recurrenceType: 'daily',
+    trainerInstructions: '',
+    recurringDays: [],
   });
 
   const [thumbnailPreview, setThumbnailPreview] = useState('');
@@ -93,6 +95,12 @@ const CreateLiveClass = () => {
       thumbnail: existing.thumbnail || '',
       isRecurring: Boolean(existing.isRecurring),
       recurrenceType: existing.recurrenceType || 'daily',
+      trainerInstructions: existing.trainerInstructions || '',
+      recurringDays: existing.recurringDays
+        ? (typeof existing.recurringDays === 'string'
+            ? JSON.parse(existing.recurringDays)
+            : existing.recurringDays)
+        : [],
     });
 
     setThumbnailPreview(existing.thumbnail ? resolveAssetUrl(existing.thumbnail) : '');
@@ -180,6 +188,8 @@ const CreateLiveClass = () => {
         recurrenceType: formData.isRecurring ? formData.recurrenceType : undefined,
         thumbnail: formData.thumbnail.trim(),
         thumbnailFile,
+        trainerInstructions: formData.trainerInstructions.trim(),
+        recurringDays: formData.isRecurring ? JSON.stringify(formData.recurringDays) : undefined,
       };
 
       const action = isEditMode
@@ -291,6 +301,18 @@ const CreateLiveClass = () => {
                   placeholder="What will be covered in this TIT class?"
                 />
               </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">Trainer Instructions / Notes for Students</label>
+                <textarea
+                  name="trainerInstructions"
+                  value={formData.trainerInstructions}
+                  onChange={handleChange}
+                  rows="3"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. Classes will be conducted only from Monday to Thursday"
+                />
+              </div>
             </div>
           </section>
 
@@ -399,6 +421,54 @@ const CreateLiveClass = () => {
                   </select>
                 </div>
               </div>
+
+              {formData.isRecurring && (
+                <div className="md:col-span-2 lg:col-span-4">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Recurring Days of the Week</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Sun', value: 0 },
+                      { label: 'Mon', value: 1 },
+                      { label: 'Tue', value: 2 },
+                      { label: 'Wed', value: 3 },
+                      { label: 'Thu', value: 4 },
+                      { label: 'Fri', value: 5 },
+                      { label: 'Sat', value: 6 }
+                    ].map((day) => {
+                      const isChecked = formData.recurringDays.includes(day.value);
+                      return (
+                        <label
+                          key={day.value}
+                          className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-4 text-xs font-semibold transition ${
+                            isChecked
+                              ? 'border-blue-600 bg-blue-50 text-blue-700'
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormData((prev) => {
+                                const newDays = checked
+                                  ? [...prev.recurringDays, day.value]
+                                  : prev.recurringDays.filter((d) => d !== day.value);
+                                return { ...prev, recurringDays: newDays.sort() };
+                              });
+                            }}
+                          />
+                          {day.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    Schedules occurrences only on these checked weekdays (e.g. Monday to Thursday).
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
