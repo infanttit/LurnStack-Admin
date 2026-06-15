@@ -147,8 +147,14 @@ const PendingSessions = () => {
         currency: pricingData.currency
       });
 
-      // Step 2: Review and publish the session
-      await reviewSessionApi(reviewingSession.id, priceInSubunits);
+      // Step 2: Review and publish the session with WhatsApp configurations
+      await reviewSessionApi(reviewingSession.id, {
+        price: priceInSubunits,
+        enableWhatsApp: pricingData.enableWhatsApp,
+        whatsappTemplateName: pricingData.whatsappTemplateName || undefined,
+        whatsappCustomTitle: pricingData.whatsappCustomTitle || undefined,
+        whatsappButtonUrl: pricingData.whatsappButtonUrl || undefined,
+      });
       
       toast.success(`Session "${reviewingSession.title}" published successfully!`);
       closeReviewModal();
@@ -374,12 +380,12 @@ const PendingSessions = () => {
             <table className="w-full table-fixed text-left text-sm">
               <colgroup>
                 <col className="w-[5%]" />
-                <col className="w-[27%]" />
+                <col className="w-[25%]" />
                 <col className="w-[16%]" />
                 <col className="w-[14%]" />
                 <col className="w-[18%]" />
                 <col className="w-[10%]" />
-                <col className="w-[10%]" />
+                <col className="w-[12%]" />
               </colgroup>
               <thead className="bg-white text-xs uppercase tracking-wide text-slate-500">
                 <tr>
@@ -389,7 +395,7 @@ const PendingSessions = () => {
                   <th className="px-4 py-3 font-bold">Category</th>
                   <th className="px-4 py-3 font-bold">Schedule</th>
                   <th className="px-4 py-3 font-bold">Source</th>
-                  <th className="px-4 py-3 text-right font-bold">Action</th>
+                  <th className="px-4 py-3 text-center font-bold">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -440,7 +446,7 @@ const PendingSessions = () => {
                           {row.source}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-4 py-4 text-center">
                         <button
                           onClick={() => openReviewModal(row.session)}
                           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 active:scale-95"

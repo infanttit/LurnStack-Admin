@@ -15,6 +15,12 @@ const initialForm = {
   meetingLink: '',
   isRecurring: false,
   recurrenceType: 'daily',
+  trainerInstructions: '',
+  recurringDays: [],
+  enableWhatsApp: true,
+  whatsappTemplateName: '',
+  whatsappCustomTitle: '',
+  whatsappButtonUrl: '',
 };
 
 const unwrapSessions = (json) => {
@@ -140,6 +146,12 @@ const TrainerSessions = () => {
         meetingLink: form.meetingLink.trim(),
         isRecurring: form.isRecurring,
         recurrenceType: form.isRecurring ? form.recurrenceType : undefined,
+        trainerInstructions: form.trainerInstructions.trim(),
+        recurringDays: form.isRecurring ? form.recurringDays : undefined,
+        enableWhatsApp: form.enableWhatsApp,
+        whatsappTemplateName: form.whatsappTemplateName.trim() || undefined,
+        whatsappCustomTitle: form.whatsappCustomTitle.trim() || undefined,
+        whatsappButtonUrl: form.whatsappButtonUrl.trim() || undefined,
       };
       const json = await createTrainerSession(payload);
       const createdSession = json?.data || json?.session || json;
@@ -281,7 +293,19 @@ const TrainerSessions = () => {
                 />
               </div>
 
-              <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Trainer Instructions (displayed to students)</label>
+                <textarea
+                  name="trainerInstructions"
+                  value={form.trainerInstructions}
+                  onChange={onChange}
+                  rows="2"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. Classes will be conducted only from Monday to Thursday"
+                />
+              </div>
+
+              <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-pointer">
                 <input
                   name="isRecurring"
                   type="checkbox"
@@ -293,18 +317,111 @@ const TrainerSessions = () => {
               </label>
 
               {form.isRecurring ? (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Recurrence</label>
-                  <select
-                    name="recurrenceType"
-                    value={form.recurrenceType}
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Recurrence</label>
+                    <select
+                      name="recurrenceType"
+                      value={form.recurrenceType}
+                      onChange={onChange}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Recurring Days of the Week</label>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {[
+                        { label: 'S', value: 0 },
+                        { label: 'M', value: 1 },
+                        { label: 'T', value: 2 },
+                        { label: 'W', value: 3 },
+                        { label: 'T', value: 4 },
+                        { label: 'F', value: 5 },
+                        { label: 'S', value: 6 }
+                      ].map((day) => {
+                        const isChecked = form.recurringDays.includes(day.value);
+                        return (
+                          <label
+                            key={day.value}
+                            className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border text-xs font-semibold transition ${
+                              isChecked
+                                ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setForm((prev) => {
+                                  const newDays = checked
+                                    ? [...prev.recurringDays, day.value]
+                                    : prev.recurringDays.filter((d) => d !== day.value);
+                                  return { ...prev, recurringDays: newDays.sort() };
+                                });
+                              }}
+                            />
+                            {day.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="border-t border-slate-100 pt-4 mt-2">
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    name="enableWhatsApp"
+                    type="checkbox"
+                    checked={form.enableWhatsApp}
                     onChange={onChange}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Enable WhatsApp Reminders
+                </label>
+              </div>
+
+              {form.enableWhatsApp ? (
+                <div className="space-y-3 pl-2 border-l-2 border-blue-100 mt-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500 font-semibold">Custom Meta Template Name (Optional)</label>
+                    <input
+                      name="whatsappTemplateName"
+                      value={form.whatsappTemplateName}
+                      onChange={onChange}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., lurnstack_alternate"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500 font-semibold">Custom Message Title (Optional)</label>
+                    <input
+                      name="whatsappCustomTitle"
+                      value={form.whatsappCustomTitle}
+                      onChange={onChange}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., React Hooks Session"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500 font-semibold">Custom Button Redirect ID/Path (Optional)</label>
+                    <input
+                      name="whatsappButtonUrl"
+                      value={form.whatsappButtonUrl}
+                      onChange={onChange}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., nodejs-course"
+                    />
+                  </div>
                 </div>
               ) : null}
 

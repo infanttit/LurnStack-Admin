@@ -103,8 +103,8 @@ export const fetchPendingSessionsApi = async () => {
   return res.data;
 };
 
-export const reviewSessionApi = async (id, price) => {
-  const res = await axiosClient.put(`/api/admin/sessions/${normalizeId(id)}/review`, { price });
+export const reviewSessionApi = async (id, payload) => {
+  const res = await axiosClient.put(`/api/admin/sessions/${normalizeId(id)}/review`, typeof payload === 'object' ? payload : { price: payload });
   return res.data;
 };
 
