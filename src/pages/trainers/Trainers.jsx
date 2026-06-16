@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
-import { fetchAdminTrainers, updateTrainer, deleteTrainer } from '../api/adminDashboard';
-import AdminDataTable from '../components/AdminDataTable';
-import StatusToggleSwitch from '../components/StatusToggleSwitch';
-import ErrorBanner from '../components/ErrorBanner';
-import { getApiErrorMessage } from '../api/axiosClient';
+import { fetchAdminTrainers, updateTrainer, deleteTrainer } from '../../api/adminDashboard';
+import AdminDataTable from '../../components/AdminDataTable';
+import StatusToggleSwitch from '../../components/StatusToggleSwitch';
+import ErrorBanner from '../../components/ErrorBanner';
+import { getApiErrorMessage } from '../../api/axiosClient';
 
 const Trainers = () => {
   const [trainers, setTrainers] = useState([]);
@@ -110,3 +110,4 @@ const Trainers = () => {
 };
 
 export default Trainers;
+

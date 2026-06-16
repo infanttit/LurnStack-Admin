@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchLiveClasses, deleteLiveClass } from '../store/slices/liveClassSlice';
+import { fetchLiveClasses, deleteLiveClass } from '../../store/slices/liveClassSlice';
 import { Plus, Edit2, Trash2, Search, Link as LinkIcon, Image as ImageIcon, Filter, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { resolveAssetUrl } from '../api/axiosClient';
+import { resolveAssetUrl } from '../../api/axiosClient';
 
 const PAGE_SIZE = 8;
 
@@ -432,3 +432,4 @@ const LiveClasses = () => {
 };
 
 export default LiveClasses;
+

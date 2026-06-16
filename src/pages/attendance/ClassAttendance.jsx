@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchClassAttendance } from '../store/slices/liveClassSlice';
+import { fetchClassAttendance } from '../../store/slices/liveClassSlice';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Download, Search, CheckCircle, Clock } from 'lucide-react';
 
@@ -112,3 +112,4 @@ const ClassAttendance = () => {
 };
 
 export default ClassAttendance;
+

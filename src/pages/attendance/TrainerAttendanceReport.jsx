@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTrainerAttendance } from '../api/attendance';
+import { getTrainerAttendance } from '../../api/attendance';
 import { toast } from 'react-toastify';
 import { Users, UserCheck, Clock, UserX, ArrowLeft, Calendar, BookOpen } from 'lucide-react';
 
@@ -173,3 +173,4 @@ const TrainerAttendanceReport = () => {
 };
 
 export default TrainerAttendanceReport;
+

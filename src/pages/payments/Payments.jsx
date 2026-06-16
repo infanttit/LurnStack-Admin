@@ -20,9 +20,9 @@ import {
   fetchAdminPayments, 
   fetchAdminSessions,
   refundPayment
-} from '../api/billing';
-import { getApiErrorMessage } from '../api/axiosClient';
-import ErrorBanner from '../components/ErrorBanner';
+} from '../../api/billing';
+import { getApiErrorMessage } from '../../api/axiosClient';
+import ErrorBanner from '../../components/ErrorBanner';
 
 const PAGE_SIZE = 10;
 
@@ -646,3 +646,4 @@ const Payments = () => {
 };
 
 export default Payments;
+

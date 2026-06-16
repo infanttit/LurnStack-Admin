@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { UserCheck, Users } from 'lucide-react';
-import { fetchAdminDashboardSummary } from '../api/adminDashboard';
-import AdminSummaryCard from '../components/AdminSummaryCard';
-import ErrorBanner from '../components/ErrorBanner';
-import { getApiErrorMessage } from '../api/axiosClient';
+import { fetchAdminDashboardSummary } from '../../api/adminDashboard';
+import AdminSummaryCard from '../../components/AdminSummaryCard';
+import ErrorBanner from '../../components/ErrorBanner';
+import { getApiErrorMessage } from '../../api/axiosClient';
 
 const Dashboard = () => {
   const [summary, setSummary] = useState({ totalStudents: 0, totalTrainers: 0 });
@@ -90,3 +90,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+

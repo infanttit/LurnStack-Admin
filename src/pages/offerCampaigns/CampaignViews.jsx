@@ -294,3 +294,4 @@ export const HistoryView = ({ history, onCreate }) => (
     </div>
   </section>
 );
+

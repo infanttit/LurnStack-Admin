@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { loginSuccess, logout } from '../store/slices/authSlice';
-import { adminLoginApi, adminRegisterApi, adminMeApi } from '../api/adminAuth';
-import { authTokenStorage, getApiErrorMessage } from '../api/axiosClient';
-import logoImage from '../Assets/Logo/Logo2.png';
+import { loginSuccess, logout } from '../../store/slices/authSlice';
+import { adminLoginApi, adminRegisterApi, adminMeApi } from '../../api/adminAuth';
+import { authTokenStorage, getApiErrorMessage } from '../../api/axiosClient';
+import logoImage from '../../Assets/Logo/Logo2.png';
 
 const getTokenFromLoginResponse = (json) => {
   const direct = json?.token || json?.accessToken;
@@ -250,3 +250,4 @@ const Login = () => {
 };
 
 export default Login;
+

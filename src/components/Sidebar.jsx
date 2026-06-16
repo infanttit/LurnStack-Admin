@@ -217,7 +217,7 @@ const Sidebar = ({ mobileOpen = false, onClose, isCollapsed = false, onToggleCol
   return (
     <>
       {/* Desktop */}
-      <aside className={`bg-gray-900 text-white h-screen flex flex-col hidden md:flex sticky top-0 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+      <aside className={`bg-gray-900 text-white h-full flex flex-col hidden md:flex sticky top-0 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
         <SidebarBrand isCollapsed={isCollapsed} onToggleCollapse={onToggleCollapse} />
         <SidebarNav isCollapsed={isCollapsed} onNavigate={undefined} onLogout={onLogout} />
       </aside>

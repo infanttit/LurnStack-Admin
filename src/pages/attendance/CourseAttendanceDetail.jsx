@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCourseAttendanceSummary } from '../api/attendance';
+import { getCourseAttendanceSummary } from '../../api/attendance';
 import { toast } from 'react-toastify';
 import { Users, UserCheck, Clock, UserX, ArrowLeft, Calendar } from 'lucide-react';
 
@@ -171,3 +171,4 @@ const CourseAttendanceDetail = () => {
 };
 
 export default CourseAttendanceDetail;
+

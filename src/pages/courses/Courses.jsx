@@ -11,10 +11,12 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { deleteCourseSession, fetchCourseSessions } from '../api/courseSessions';
-import { getApiErrorMessage, resolveAssetUrl } from '../api/axiosClient';
-import ErrorBanner from '../components/ErrorBanner';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { deleteCourseSession, fetchCourseSessions } from '../../api/courseSessions';
+import { getApiErrorMessage, resolveAssetUrl } from '../../api/axiosClient';
+import ErrorBanner from '../../components/ErrorBanner';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import CoursesTable from './CoursesTable';
+import DeleteCourseModal from './DeleteCourseModal';
 
 const PAGE_SIZE = 10;
 
@@ -170,7 +172,15 @@ const Courses = () => {
   }, []);
 
   const normalizedSessions = useMemo(
-    () => sessions.map(normalizeSession).filter(Boolean),
+    () => sessions
+      .filter((s) => {
+        const source = String(s?.source || '').toLowerCase();
+        const sectionType = String(s?.sectionType || s?.sessionType || '').toLowerCase();
+        const isTit = source.includes('admin_tit') || sectionType === 'tit';
+        return !isTit;
+      })
+      .map(normalizeSession)
+      .filter(Boolean),
     [sessions]
   );
 
@@ -379,130 +389,13 @@ const Courses = () => {
           </div>
         ) : (
           <>
-            <div className="w-full">
-              <table className="w-full table-fixed text-left text-sm">
-                <colgroup>
-                  <col className="w-[4%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[28%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[6%]" />
-                  <col className="w-[6%]" />
-                </colgroup>
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-3 py-3 font-semibold">No.</th>
-                    <th className="px-3 py-3 font-semibold">Course</th>
-                    <th className="px-3 py-3 font-semibold">Session</th>
-                    <th className="hidden px-3 py-3 font-semibold md:table-cell">Trainer</th>
-                    <th className="px-3 py-3 font-semibold">Date</th>
-                    <th className="hidden px-3 py-3 font-semibold xl:table-cell">Time</th>
-                    <th className="px-3 py-3 font-semibold">Status</th>
-                    <th className="px-3 py-3 text-center font-semibold">Meet</th>
-                    <th className="px-3 py-3 text-center font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {paginatedSessions.length === 0 ? (
-                    <tr>
-                      <td colSpan="9" className="px-4 py-10 text-center text-sm font-medium text-slate-500">
-                        No course sessions found.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedSessions.map((session, index) => (
-                      <tr key={`${session.id}-${startIndex + index}`} className="align-middle hover:bg-slate-50">
-                        <td className="px-3 py-4 text-center font-semibold text-slate-900">{startIndex + index + 1}</td>
-                        <td className="px-3 py-4 align-middle">
-                          <p className="truncate font-semibold text-slate-800" title={session.courseName}>
-                            {session.courseName}
-                          </p>
-                        </td>
-                        <td className="px-3 py-4 align-middle">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className="hidden h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100 sm:flex">
-                              {session.thumbnail ? (
-                                <img src={resolveAssetUrl(session.thumbnail)} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <ImageIcon className="h-5 w-5 text-slate-400" />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold text-slate-900" title={session.sessionTitle}>
-                                {session.sessionTitle}
-                              </p>
-                              <p className="mt-1 truncate text-xs text-slate-500" title={session.description}>
-                                {session.description}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="hidden px-3 py-4 align-middle text-slate-700 md:table-cell">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <UserCheck className="h-4 w-4 shrink-0 text-slate-400" />
-                            <span className="truncate" title={session.instructor}>{session.instructor}</span>
-                          </span>
-                        </td>
-                        <td className="px-3 py-4 align-middle text-slate-700">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <Calendar className="hidden h-4 w-4 shrink-0 text-slate-400 sm:block" />
-                            <span className="truncate">{session.date || '-'}</span>
-                          </span>
-                        </td>
-                        <td className="hidden px-3 py-4 align-middle text-slate-700 xl:table-cell">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <Clock className="h-4 w-4 shrink-0 text-slate-400" />
-                            <span className="truncate">
-                              {session.time || '-'} <span className="text-slate-400">({session.duration})</span>
-                            </span>
-                          </span>
-                        </td>
-                        <td className="px-3 py-4 align-middle">
-                          <span className={`inline-flex max-w-full rounded-full border px-2 py-1 text-xs font-bold ${getStatusStyles(session.status)}`}>
-                            <span className="truncate">
-                            {session.status}
-                            </span>
-                          </span>
-                        </td>
-                        <td className="px-3 py-4 text-center align-middle">
-                          {session.meetLink ? (
-                            <a
-                              href={session.meetLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 transition hover:bg-blue-50 hover:text-blue-800"
-                              title={session.meetLink}
-                            >
-                              <Video className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-4 text-center align-middle">
-                          <button
-                            type="button"
-                            onClick={() => openDeleteModal(session)}
-                            disabled={!session.id || deletingSessions[session.id]}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            title={session.id ? `Delete ${session.sessionTitle}` : 'Session ID missing'}
-                          >
-                            {deletingSessions[session.id] ? (
-                              <span className="h-4 w-4 rounded-full border-2 border-red-200 border-t-red-600 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <CoursesTable
+              paginatedSessions={paginatedSessions}
+              startIndex={startIndex}
+              getStatusStyles={getStatusStyles}
+              openDeleteModal={openDeleteModal}
+              deletingSessions={deletingSessions}
+            />
 
             <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -554,73 +447,15 @@ const Courses = () => {
         )}
       </section>
 
-      {sessionToDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
-                  <Trash2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Delete Session</h2>
-                  <p className="mt-1 text-sm text-slate-500">This action cannot be undone.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deletingSessions[sessionToDelete.id]}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Close delete confirmation"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="px-6 py-5">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-bold text-slate-900">{sessionToDelete.sessionTitle}</p>
-                <p className="mt-1 text-sm text-slate-600">{sessionToDelete.courseName}</p>
-                <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  ID: {sessionToDelete.id}
-                </p>
-              </div>
-              <p className="mt-4 text-sm text-slate-600">
-                Deleting this will remove the selected course session from the admin list and backend records.
-              </p>
-            </div>
-
-            <div className="flex gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deletingSessions[sessionToDelete.id]}
-                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeleteSession}
-                disabled={deletingSessions[sessionToDelete.id]}
-                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-              >
-                {deletingSessions[sessionToDelete.id] ? (
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                    Deleting
-                  </span>
-                ) : (
-                  'Delete'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <DeleteCourseModal
+        sessionToDelete={sessionToDelete}
+        deletingSessions={deletingSessions}
+        closeDeleteModal={closeDeleteModal}
+        confirmDeleteSession={confirmDeleteSession}
+      />
     </div>
   );
 };
 
 export default Courses;
+

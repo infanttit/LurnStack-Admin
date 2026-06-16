@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Trash2, AlertTriangle, X } from 'lucide-react';
-import { fetchAdminStudents, deleteStudent, bulkDeleteStudents } from '../api/adminDashboard';
-import AdminDataTable from '../components/AdminDataTable';
-import ErrorBanner from '../components/ErrorBanner';
-import { getApiErrorMessage } from '../api/axiosClient';
+import { fetchAdminStudents, deleteStudent, bulkDeleteStudents } from '../../api/adminDashboard';
+import AdminDataTable from '../../components/AdminDataTable';
+import ErrorBanner from '../../components/ErrorBanner';
+import { getApiErrorMessage } from '../../api/axiosClient';
 
 const Students = () => {
   const [students, setStudents] = useState([]);
@@ -211,3 +211,4 @@ const Students = () => {
 };
 
 export default Students;
+

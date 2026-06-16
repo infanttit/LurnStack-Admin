@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { authTokenStorage, getApiErrorMessage } from '../api/axiosClient';
+import { authTokenStorage, getApiErrorMessage } from '../../api/axiosClient';
 import {
   createOfferCampaignApi,
   deleteOfferCampaignApi,
@@ -10,20 +10,20 @@ import {
   fetchOfferTargetsApi,
   sendOfferCampaignApi,
   updateOfferCampaignApi,
-} from '../api/offerCampaigns';
-import { Alert } from './offerCampaigns/Fields';
-import { BuilderView } from './offerCampaigns/BuilderView';
-import { CampaignsView, HistoryView } from './offerCampaigns/CampaignViews';
+} from '../../api/offerCampaigns';
+import { Alert } from './Fields';
+import { BuilderView } from './BuilderView';
+import { CampaignsView, HistoryView } from './CampaignViews';
 import {
   audienceOptions,
   emailTemplates,
   initialForm,
   initialTemplate,
   pageMeta,
-} from './offerCampaigns/constants';
-import { buildOfferCtaLink, unwrapCampaign, unwrapList } from './offerCampaigns/utils';
-import darkEmailLogo from '../Assets/Logo/Logo3.png';
-import lightEmailLogo from '../Assets/Logo/Logo4.png';
+} from './constants';
+import { buildOfferCtaLink, unwrapCampaign, unwrapList } from './utils';
+import darkEmailLogo from '../../Assets/Logo/Logo3.png';
+import lightEmailLogo from '../../Assets/Logo/Logo4.png';
 
 const normalizeCampaign = (item) => ({
   id: item?.id || item?._id || item?.campaignId,
@@ -612,3 +612,4 @@ const OfferCampaigns = ({ view = 'campaigns' }) => {
 };
 
 export default OfferCampaigns;
+

@@ -322,3 +322,4 @@ const SessionDetail = ({ session, onBack }) => {
 };
 
 export default SessionEarningsPage;
+

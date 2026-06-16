@@ -30,9 +30,9 @@ import {
   fetchTrainerEarnings, 
   markTrainerEarningPaid, 
   holdTrainerPayout 
-} from '../api/billing';
-import { getApiErrorMessage } from '../api/axiosClient';
-import ErrorBanner from '../components/ErrorBanner';
+} from '../../api/billing';
+import { getApiErrorMessage } from '../../api/axiosClient';
+import ErrorBanner from '../../components/ErrorBanner';
 
 const PAGE_SIZE = 8;
 
@@ -832,3 +832,4 @@ const Revenue = () => {
 };
 
 export default Revenue;
+

@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, Clock3, IndianRupee, KeyRound, Plus, RefreshCw, Video } from 'lucide-react';
-import { createTrainerSession, fetchTrainerSessions } from '../api/trainerSessions';
-import { getApiErrorMessage, trainerTokenStorage } from '../api/axiosClient';
-import ErrorBanner from '../components/ErrorBanner';
-import LoadingSpinner from '../components/LoadingSpinner';
-import logoImage from '../Assets/Logo/Logo2.png';
+import { createTrainerSession, fetchTrainerSessions } from '../../api/trainerSessions';
+import { getApiErrorMessage, trainerTokenStorage } from '../../api/axiosClient';
+import ErrorBanner from '../../components/ErrorBanner';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import logoImage from '../../Assets/Logo/Logo2.png';
 
 const initialForm = {
   courseId: '',
@@ -495,3 +495,4 @@ const TrainerSessions = () => {
 };
 
 export default TrainerSessions;
+

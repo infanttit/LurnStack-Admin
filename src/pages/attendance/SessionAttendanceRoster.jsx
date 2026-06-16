@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSessionAttendance, overrideStudentAttendance } from '../api/attendance';
+import { getSessionAttendance, overrideStudentAttendance } from '../../api/attendance';
 import { toast } from 'react-toastify';
 import { ArrowLeft, Clock, Mail, User } from 'lucide-react';
 
@@ -174,3 +174,4 @@ const SessionAttendanceRoster = () => {
 };
 
 export default SessionAttendanceRoster;
+
