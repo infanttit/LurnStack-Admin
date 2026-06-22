@@ -85,6 +85,46 @@ const Dashboard = () => {
           <AdminSummaryCard key={stat.label} {...stat} />
         ))}
       </div>
+
+      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">Attendance Quick Search</h2>
+        <p className="mt-1 text-sm text-slate-500">Quickly view complete attendance history across all courses and sessions for any Student or Trainer.</p>
+        
+        <form 
+          className="mt-6 flex flex-col sm:flex-row gap-3 items-center"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const id = e.target.userId.value.trim();
+            if (id) {
+              // Trainer attendance (their own presence) is also tracked under the student attendance structure.
+              window.location.href = `/students/${id}/attendance`;
+            }
+          }}
+        >
+          <select 
+            name="userType"
+            className="w-full sm:w-48 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+          >
+            <option value="student">Student</option>
+            <option value="trainer">Trainer (Own Attendance)</option>
+          </select>
+          
+          <input 
+            name="userId"
+            type="text"
+            placeholder="Enter User ID..."
+            required
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+          />
+          
+          <button 
+            type="submit"
+            className="w-full sm:w-auto shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
+          >
+            View Attendance
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

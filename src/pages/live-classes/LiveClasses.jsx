@@ -13,7 +13,7 @@ const getCourse = (cls) => cls?.courseName || cls?.course?.name || cls?.courseTi
 const getInstructor = (cls) => cls?.instructor || cls?.trainerName || cls?.trainer?.name || '-';
 const getMeetLink = (cls) => cls?.meetLink || cls?.meetingLink || '';
 const getStartTime = (cls) => cls?.time || cls?.startTime || '-';
-const getEndTime = (cls) => cls?.endTime || '';
+const getEndTime = (cls) => cls?.endsAt || cls?.endTime || '';
 
 const LiveClasses = () => {
   const dispatch = useDispatch();

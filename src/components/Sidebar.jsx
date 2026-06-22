@@ -89,9 +89,13 @@ const SidebarNav = ({ isCollapsed, onNavigate, onLogout }) => {
   useEffect(() => {
     const activeSections = navItems.reduce((acc, item) => {
       const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-      const isSectionActive =
-        location.pathname === item.path ||
-        (item.path !== '/' && location.pathname.startsWith(`${item.path}/`));
+      const isAttendanceRoute = location.pathname.includes('/attendance');
+      const isSectionActive = item.name === 'Attendance'
+        ? isAttendanceRoute
+        : (!isAttendanceRoute && (
+            location.pathname === item.path ||
+            (item.path !== '/' && location.pathname.startsWith(`${item.path}/`))
+          ));
 
       if (hasChildren && isSectionActive) {
         acc[item.name] = true;
@@ -114,9 +118,13 @@ const SidebarNav = ({ isCollapsed, onNavigate, onLogout }) => {
     <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto no-scrollbar pr-1">
       {navItems.map((item) => {
         const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-        const isSectionActive =
-          location.pathname === item.path ||
-          (item.path !== '/' && location.pathname.startsWith(`${item.path}/`));
+        const isAttendanceRoute = location.pathname.includes('/attendance');
+        const isSectionActive = item.name === 'Attendance'
+          ? isAttendanceRoute
+          : (!isAttendanceRoute && (
+              location.pathname === item.path ||
+              (item.path !== '/' && location.pathname.startsWith(`${item.path}/`))
+            ));
         const isSectionOpen = !!openSections[item.name];
 
         return (
@@ -149,13 +157,18 @@ const SidebarNav = ({ isCollapsed, onNavigate, onLogout }) => {
                 to={item.path}
                 onClick={onNavigate}
                 title={isCollapsed ? item.name : undefined}
-                className={({ isActive }) =>
-                  `flex items-center rounded-lg transition-all duration-200 ${
+                className={({ isActive }) => {
+                  const isAttendanceRoute = location.pathname.includes('/attendance');
+                  const itemIsActive = item.name === 'Attendance' 
+                    ? isAttendanceRoute 
+                    : (isActive && !isAttendanceRoute);
+
+                  return `flex items-center rounded-lg transition-all duration-200 ${
                     isCollapsed ? 'justify-center p-3' : 'space-x-3 px-4 py-3'
                   } ${
-                    isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                  }`
-                }
+                    itemIsActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  }`;
+                }}
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 {!isCollapsed && <span className="font-medium animate-fade-in whitespace-nowrap text-sm">{item.name}</span>}

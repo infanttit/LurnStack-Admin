@@ -1,8 +1,44 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getCourseAttendanceSummary } from '../../api/attendance';
 import { toast } from 'react-toastify';
-import { Users, UserCheck, Clock, UserX, ArrowLeft, Calendar } from 'lucide-react';
+import { Users, UserCheck, Clock, UserX, ArrowLeft, Calendar, Search } from 'lucide-react';
+
+const PaginationControls = ({ currentPage, totalItems, rowsPerPage, onPageChange }) => {
+  const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+  if (totalPages <= 1) return null;
+
+  const startEntry = (currentPage - 1) * rowsPerPage + 1;
+  const endEntry = Math.min(currentPage * rowsPerPage, totalItems);
+
+  return (
+    <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-6 py-4 sm:flex-row bg-slate-50/50">
+      <p className="text-xs font-semibold text-slate-500">
+        Showing <span className="font-bold text-slate-900">{startEntry}</span> to{' '}
+        <span className="font-bold text-slate-900">{endEntry}</span> of{' '}
+        <span className="font-bold text-slate-900">{totalItems}</span> entries
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const CourseAttendanceDetail = () => {
   const { courseId } = useParams();
@@ -10,15 +46,25 @@ const CourseAttendanceDetail = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => {
     fetchSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
+
+  // Reset page when search or status filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
 
   const fetchSummary = async () => {
     try {
       setLoading(true);
       const res = await getCourseAttendanceSummary(courseId);
-      setData(res?.data || res);
+      setData(res.data || res);
     } catch (err) {
       toast.error('Failed to load course attendance summary');
       console.error(err);
@@ -60,6 +106,41 @@ const CourseAttendanceDetail = () => {
 
   const { summary = {}, occurrences = [], courseTitle } = data;
 
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+
+  // Total macro sessions counts occurrences up to today
+  const totalBaseOccurrencesCount = occurrences.filter((occ) => {
+    const occDate = new Date(occ.date || occ.occurrenceDate || occ.startsAt);
+    return occDate <= endOfToday;
+  }).length;
+
+  const totalSessions = summary.totalSessions ?? totalBaseOccurrencesCount;
+  const attendedCount = summary.attendedCount ?? (summary.presentCount ?? 0) + (summary.lateCount ?? 0);
+
+  // Filtered list for the table
+  const filteredOccurrences = occurrences.filter((occ) => {
+    const occDate = new Date(occ.date || occ.occurrenceDate || occ.startsAt);
+    if (occDate > endOfToday) return false;
+
+    // Search query matching title
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      const title = occ.sessionTitle || occ.courseTitle || 'Class Session';
+      if (!title.toLowerCase().includes(query)) return false;
+    }
+
+    // Status matching
+    if (statusFilter !== 'all') {
+      const status = (occ.status || 'scheduled').toLowerCase();
+      if (status !== statusFilter) return false;
+    }
+
+    return true;
+  });
+
+  const paginatedOccurrences = filteredOccurrences.slice((currentPage - 1) * 10, currentPage * 10);
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center space-x-4">
@@ -71,19 +152,28 @@ const CourseAttendanceDetail = () => {
         </button>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">{courseTitle || 'Course Attendance'}</h2>
-          <p className="text-sm text-gray-500 mt-1">Detailed session attendance summary</p>
+          <p className="text-sm text-gray-500 mt-1">{"Attendance Overview -> Course"}</p>
         </div>
       </div>
 
       {/* Macro Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
           <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
+            <Calendar size={24} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Total Sessions</p>
+            <p className="text-2xl font-bold text-gray-900">{totalSessions}</p>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
+          <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
             <Users size={24} />
           </div>
           <div>
-            <p className="text-sm text-gray-500 font-medium">Total Records</p>
-            <p className="text-2xl font-bold text-gray-900">{summary.totalRecords || 0}</p>
+            <p className="text-sm text-gray-500 font-medium">Total Attended</p>
+            <p className="text-2xl font-bold text-gray-900">{attendedCount}</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
@@ -92,7 +182,7 @@ const CourseAttendanceDetail = () => {
           </div>
           <div>
             <p className="text-sm text-gray-500 font-medium">Present</p>
-            <p className="text-2xl font-bold text-gray-900">{summary.totalPresent || 0}</p>
+            <p className="text-2xl font-bold text-gray-900">{summary.presentCount ?? 0}</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
@@ -101,7 +191,7 @@ const CourseAttendanceDetail = () => {
           </div>
           <div>
             <p className="text-sm text-gray-500 font-medium">Late</p>
-            <p className="text-2xl font-bold text-gray-900">{summary.totalLate || 0}</p>
+            <p className="text-2xl font-bold text-gray-900">{summary.lateCount ?? 0}</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
@@ -110,15 +200,36 @@ const CourseAttendanceDetail = () => {
           </div>
           <div>
             <p className="text-sm text-gray-500 font-medium">Absent</p>
-            <p className="text-2xl font-bold text-gray-900">{summary.totalAbsent || 0}</p>
+            <p className="text-2xl font-bold text-gray-900">{summary.absentCount ?? 0}</p>
           </div>
         </div>
       </div>
 
       {/* Occurrences Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="font-semibold text-gray-800">Session Occurrences</h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500"
+            >
+              <option value="all">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="live">Live</option>
+              <option value="scheduled">Scheduled</option>
+            </select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search session..."
+                className="h-10 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 sm:w-64"
+              />
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-gray-600">
@@ -133,21 +244,21 @@ const CourseAttendanceDetail = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {occurrences.length === 0 ? (
+              {paginatedOccurrences.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                     No sessions found for this course.
                   </td>
                 </tr>
               ) : (
-                occurrences.map((occ) => (
+                paginatedOccurrences.map((occ) => (
                   <tr 
-                    key={occ.sessionId} 
+                    key={`${occ.sessionId}-${occ.date || occ.occurrenceDate || occ.id}`}
                     onClick={() => navigate(`/sessions/${occ.sessionId}/attendance`)}
                     className="hover:bg-blue-50 cursor-pointer transition-colors duration-150 group"
                   >
                     <td className="px-6 py-4 font-medium text-gray-900 group-hover:text-blue-600">
-                      {occ.sessionTitle || 'Unnamed Session'}
+                      {occ.sessionTitle || occ.courseTitle || 'Class Session'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2 text-gray-500">
@@ -156,19 +267,24 @@ const CourseAttendanceDetail = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">{getStatusBadge(occ.status)}</td>
-                    <td className="px-6 py-4 font-medium text-emerald-600">{occ.presentCount || 0}</td>
-                    <td className="px-6 py-4 font-medium text-amber-600">{occ.lateCount || 0}</td>
-                    <td className="px-6 py-4 font-medium text-rose-600">{occ.absentCount || 0}</td>
+                    <td className="px-6 py-4 font-medium text-emerald-600">{occ.presentCount ?? 0}</td>
+                    <td className="px-6 py-4 font-medium text-amber-600">{occ.lateCount ?? 0}</td>
+                    <td className="px-6 py-4 font-medium text-rose-600">{occ.absentCount ?? 0}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalItems={filteredOccurrences.length}
+          rowsPerPage={10}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );
 };
 
 export default CourseAttendanceDetail;
-

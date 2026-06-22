@@ -1,13 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Eye, History, Search, ShieldAlert } from 'lucide-react';
 import { StatusBadge } from '../components/Shared';
 import { formatCurrency, formatDate, getPageItems } from '../utils';
+import { getStudentAttendance } from '../../../api/attendance';
 
 const REQUEST_PAGE_SIZE = 8;
 
 const PayoutRequests = ({
   accounts,
   payouts,
+  earnings = [],
   selectedPayout,
   setSelectedPayoutId,
   rejectNote,
@@ -29,6 +31,11 @@ const PayoutRequests = ({
 
   const reviewPayout = payouts.find((payout) => payout.id === reviewPayoutId) || selectedPayout;
   const reviewAccount = accountByTrainerId[reviewPayout?.trainerId];
+  
+  const reviewEarnings = useMemo(() => {
+    if (!reviewPayoutId) return [];
+    return earnings.filter((e) => e.payoutRequestId === reviewPayoutId);
+  }, [earnings, reviewPayoutId]);
 
   const filteredPayouts = useMemo(() => {
     const query = filters.query.trim().toLowerCase();
@@ -76,6 +83,7 @@ const PayoutRequests = ({
       <PayoutReview
         account={reviewAccount}
         payout={reviewPayout}
+        earnings={reviewEarnings}
         rejectNote={rejectNote}
         setRejectNote={setRejectNote}
         setShowHistory={setShowHistory}
@@ -214,12 +222,72 @@ const RequestPagination = ({ activePage, endIndex, pageItems, setPage, startInde
   </div>
 );
 
-const PayoutReview = ({ account, payout, rejectNote, setRejectNote, setShowHistory, onUpdateStatus, onBack }) => {
+const PayoutReview = ({ account, payout, earnings, rejectNote, setRejectNote, setShowHistory, onUpdateStatus, onBack }) => {
+  const [actionError, setActionError] = useState('');
+  const [attendancePercentage, setAttendancePercentage] = useState(null);
+  const [isCalculating, setIsCalculating] = useState(false);
+
   const accountStatus = account?.status || 'missing';
   const isAccountVerified = accountStatus === 'verified';
   const canApprove = payout.status === 'requested' && isAccountVerified;
   const canReject = ['requested', 'approved'].includes(payout.status);
   const unverifiedNote = 'Payout account is not verified. Please upload and verify payout account details before requesting payout.';
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (!payout?.trainerId || earnings.length === 0) return;
+      setIsCalculating(true);
+      try {
+        const sessionIds = Array.from(new Set(earnings.map((e) => e.sessionId).filter(Boolean)));
+        if (sessionIds.length === 0) {
+          setIsCalculating(false);
+          return;
+        }
+
+        const res = await getStudentAttendance(payout.trainerId);
+        const attendanceRecords = res?.data || res || [];
+        
+        // Filter attendance to just the sessions tied to this payout
+        const payoutAttendances = attendanceRecords.filter((a) => sessionIds.includes(a.sessionId));
+        
+        let totalRequiredSecs = 0;
+        let totalAttendedSecs = 0;
+
+        payoutAttendances.forEach(att => {
+          const occ = att.session;
+          if (occ && occ.startsAt && occ.endsAt) {
+            const start = new Date(occ.startsAt);
+            const end = new Date(occ.endsAt);
+            const sessionDurationMins = Math.max(1, Math.round((end - start) / 60000));
+            const requiredSecs = sessionDurationMins * 60;
+            totalRequiredSecs += requiredSecs;
+            totalAttendedSecs += att.totalDurationSeconds || 0;
+          }
+        });
+
+        if (totalRequiredSecs > 0) {
+          const pct = Math.min(100, (totalAttendedSecs / totalRequiredSecs) * 100);
+          setAttendancePercentage(pct);
+        } else {
+          setAttendancePercentage(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch trainer attendance:", err);
+      } finally {
+        setIsCalculating(false);
+      }
+    };
+    fetchAttendance();
+  }, [payout, earnings]);
+
+  const handleUpdateStatus = async (status) => {
+    setActionError('');
+    try {
+      await onUpdateStatus(status);
+    } catch (err) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to update payout status.');
+    }
+  };
 
   return (
     <section className="space-y-4">
@@ -228,12 +296,41 @@ const PayoutReview = ({ account, payout, rejectNote, setRejectNote, setShowHisto
         Back to payout requests
       </button>
 
+      {actionError ? (
+        <div className="flex gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-bold">Action Failed</p>
+            <p className="mt-1">{actionError}</p>
+          </div>
+        </div>
+      ) : null}
+
       {!isAccountVerified ? (
         <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
             <p className="font-bold">Payout account is not verified.</p>
             <p className="mt-1">Admin should reject this request and ask the trainer to upload verified payout account details before requesting payout again.</p>
+          </div>
+        </div>
+      ) : null}
+
+      {isCalculating ? (
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"></div>
+          Calculating trainer attendance...
+        </div>
+      ) : attendancePercentage !== null ? (
+        <div className={`flex gap-3 rounded-lg border p-4 text-sm ${attendancePercentage < 85 ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-bold">Trainer Attendance: {attendancePercentage.toFixed(2)}%</p>
+            <p className="mt-1">
+              {attendancePercentage < 85 
+                ? 'Trainer failed to meet the 85% attendance requirement for the sessions tied to this payout request.' 
+                : 'Trainer meets the 85% attendance requirement for these sessions.'}
+            </p>
           </div>
         </div>
       ) : null}
@@ -280,7 +377,7 @@ const PayoutReview = ({ account, payout, rejectNote, setRejectNote, setShowHisto
           <h3 className="font-bold text-slate-900">Review Action</h3>
           <p className="mt-1 text-sm text-slate-500">Reject requires an admin note.</p>
           <div className="mt-4 flex flex-col gap-2">
-            <button onClick={() => onUpdateStatus('approved')} disabled={!canApprove} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+            <button onClick={() => handleUpdateStatus('approved')} disabled={!canApprove} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">
               Approve Request
             </button>
             {!isAccountVerified ? (
@@ -288,7 +385,7 @@ const PayoutReview = ({ account, payout, rejectNote, setRejectNote, setShowHisto
                 Use Account Not Verified Note
               </button>
             ) : null}
-            <button onClick={() => onUpdateStatus('rejected')} disabled={!canReject} className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50">
+            <button onClick={() => handleUpdateStatus('rejected')} disabled={!canReject} className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50">
               Reject Request
             </button>
             <button onClick={() => setShowHistory(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">

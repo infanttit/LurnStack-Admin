@@ -60,7 +60,7 @@ const getScheduleText = (session) => {
 
   const date = safeText(session?.date || session?.scheduledDate || session?.startDate);
   const start = safeText(session?.startTime || session?.time);
-  const end = safeText(session?.endTime);
+  const end = safeText(session?.endsAt || session?.endTime);
   if (!date && !start) return 'TBD';
   return `${date || 'TBD'}${start ? `, ${start}${end ? ` - ${end}` : ''}` : ''}`;
 };
