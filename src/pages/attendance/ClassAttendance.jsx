@@ -1,14 +1,52 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchClassAttendance } from '../../store/slices/liveClassSlice';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Download, Search, CheckCircle, Clock } from 'lucide-react';
 
+const PaginationControls = ({ currentPage, totalItems, rowsPerPage, onPageChange }) => {
+  const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+  if (totalPages <= 1) return null;
+
+  const startEntry = (currentPage - 1) * rowsPerPage + 1;
+  const endEntry = Math.min(currentPage * rowsPerPage, totalItems);
+
+  return (
+    <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-6 py-4 sm:flex-row bg-slate-50/50">
+      <p className="text-xs font-semibold text-slate-500">
+        Showing <span className="font-bold text-slate-900">{startEntry}</span> to{' '}
+        <span className="font-bold text-slate-900">{endEntry}</span> of{' '}
+        <span className="font-bold text-slate-900">{totalItems}</span> entries
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const ClassAttendance = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
-  const { attendance, loading } = useSelector((state) => state.liveClasses);
+  const { attendance = [], loading } = useSelector((state) => state.liveClasses);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (id) {
@@ -16,11 +54,36 @@ const ClassAttendance = () => {
     }
   }, [dispatch, id]);
 
-  const filteredAttendance = attendance.filter(
-    (record) =>
-      record.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Reset page when search or status changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const filteredAttendance = useMemo(() => {
+    let list = attendance || [];
+
+    const query = searchTerm.trim().toLowerCase();
+    if (query) {
+      list = list.filter(
+        (record) =>
+          record.studentName.toLowerCase().includes(query) ||
+          record.email.toLowerCase().includes(query)
+      );
+    }
+
+    if (statusFilter !== 'all') {
+      list = list.filter((record) => {
+        const status = (record.attendanceStatus || '').toLowerCase();
+        return status === statusFilter;
+      });
+    }
+
+    return list;
+  }, [attendance, searchTerm, statusFilter]);
+
+  const paginatedAttendance = useMemo(() => {
+    return filteredAttendance.slice((currentPage - 1) * 10, currentPage * 10);
+  }, [filteredAttendance, currentPage]);
 
   return (
     <div>
@@ -41,18 +104,29 @@ const ClassAttendance = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-          <div className="relative w-64">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-              <Search className="w-4 h-4 text-gray-400" />
-            </span>
-            <input
-              type="text"
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all"
-              placeholder="Search student..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="p-4 border-b border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500"
+            >
+              <option value="all">All Statuses</option>
+              <option value="present">Present</option>
+              <option value="late">Late</option>
+            </select>
+            <div className="relative w-64">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                <Search className="w-4 h-4 text-gray-400" />
+              </span>
+              <input
+                type="text"
+                className="w-full pl-9 pr-4 h-10 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all outline-none"
+                placeholder="Search student..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
@@ -73,14 +147,14 @@ const ClassAttendance = () => {
                     Loading attendance...
                   </td>
                 </tr>
-              ) : filteredAttendance.length === 0 ? (
+              ) : paginatedAttendance.length === 0 ? (
                 <tr>
                   <td colSpan="4" className="p-8 text-center text-gray-500">
                     No attendance records found.
                   </td>
                 </tr>
               ) : (
-                filteredAttendance.map((record) => (
+                paginatedAttendance.map((record) => (
                   <tr key={record.studentId} className="hover:bg-gray-50 transition-colors">
                     <td className="p-4 font-medium text-gray-900">{record.studentName}</td>
                     <td className="p-4 text-gray-500">{record.email}</td>
@@ -106,6 +180,12 @@ const ClassAttendance = () => {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalItems={filteredAttendance.length}
+          rowsPerPage={10}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

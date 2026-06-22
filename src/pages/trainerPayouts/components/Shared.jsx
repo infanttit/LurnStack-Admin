@@ -11,12 +11,13 @@ const statusStyles = {
   verified: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   future_adjustment: 'bg-orange-50 text-orange-700 border-orange-200',
   adjusted: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  partially_paid: 'bg-sky-50 text-sky-700 border-sky-200',
 };
 
 export const StatusBadge = ({ status }) => {
   const clean = String(status || 'pending').toLowerCase();
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold capitalize ${statusStyles[clean] || statusStyles.pending}`}>
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold capitalize whitespace-nowrap ${statusStyles[clean] || statusStyles.pending}`}>
       {clean.replace(/_/g, ' ')}
     </span>
   );

@@ -3,12 +3,14 @@ import { Eye, Filter, RefreshCcw, Search, X } from 'lucide-react';
 import { StatusBadge } from '../components/Shared';
 import { formatCurrency, formatDate } from '../utils';
 
-const getAmounts = (item) => {
+const getAmounts = (item, trainerStat) => {
   const gross = Number(item.grossRevenue ?? item.paidStudents * item.sessionPrice);
   const trainerEarning = Number(item.trainerEarning ?? Math.round((gross * item.trainerShare) / 100));
   const platformEarning = Number(item.platformEarning ?? gross - trainerEarning);
   const finalPayable = Number(item.finalPayable ?? Math.max(0, trainerEarning - item.refundAdjustment));
-  return { gross, trainerEarning, platformEarning, finalPayable };
+  const trainerPaid = trainerStat?.paidAmount || 0;
+  const balancePayable = Math.max(0, (trainerStat?.totalEarned || finalPayable) - trainerPaid);
+  return { gross, trainerEarning, platformEarning, finalPayable, trainerPaid, balancePayable };
 };
 
 const getRowLabel = (row, index) =>
@@ -18,11 +20,11 @@ const getRowLabel = (row, index) =>
   row.id ||
   `Earning ${index + 1}`;
 
-const EarningsDashboard = ({ filters, setFilters, trainerOptions, sessions, rows, loading, onRefresh }) => {
+const EarningsDashboard = ({ filters, setFilters, trainerOptions, sessions, rows, loading, onRefresh, trainerStats = {} }) => {
   const [selectedSession, setSelectedSession] = useState(null);
   const selectedAmounts = useMemo(
-    () => (selectedSession ? getAmounts(selectedSession) : null),
-    [selectedSession]
+    () => (selectedSession ? getAmounts(selectedSession, trainerStats[selectedSession.trainerId]) : null),
+    [selectedSession, trainerStats]
   );
 
   return (
@@ -115,52 +117,69 @@ const EarningsDashboard = ({ filters, setFilters, trainerOptions, sessions, rows
         <table className="min-w-[1280px] w-full text-left text-sm" aria-busy={loading}>
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Trainer</th>
-              <th className="px-4 py-3">Session</th>
-              <th className="px-4 py-3 text-center">Paid Students</th>
-              <th className="px-4 py-3">Price</th>
-              <th className="px-4 py-3">Gross</th>
-              <th className="px-4 py-3">Trainer %</th>
-              <th className="px-4 py-3">Trainer Earning</th>
-              <th className="px-4 py-3">Platform Earning</th>
-              <th className="px-4 py-3">Refund Adj.</th>
-              <th className="px-4 py-3">Final Payable</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Details</th>
+              <th className="px-4 py-3 whitespace-nowrap">Trainer</th>
+              <th className="px-4 py-3 whitespace-nowrap">Session</th>
+              <th className="px-4 py-3 text-center whitespace-nowrap">Paid Students</th>
+              <th className="px-4 py-3 whitespace-nowrap">Price</th>
+              <th className="px-4 py-3 whitespace-nowrap">Gross</th>
+              <th className="px-4 py-3 whitespace-nowrap">Trainer %</th>
+              <th className="px-4 py-3 whitespace-nowrap">Trainer Earning</th>
+              <th className="px-4 py-3 whitespace-nowrap">Platform Earning</th>
+              <th className="px-4 py-3 whitespace-nowrap">Refund Adj.</th>
+              <th className="px-4 py-3 whitespace-nowrap">Total Paid</th>
+              <th className="px-4 py-3 whitespace-nowrap">Balance Payable</th>
+              <th className="px-4 py-3 whitespace-nowrap">Status</th>
+              <th className="px-4 py-3 text-right whitespace-nowrap">Details</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan="12" className="px-4 py-10 text-center text-sm font-medium text-slate-500">
+                <td colSpan="13" className="px-4 py-10 text-center text-sm font-medium text-slate-500">
                   Refreshing trainer earnings...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan="12" className="px-4 py-10 text-center text-sm font-medium text-slate-500">
+                <td colSpan="13" className="px-4 py-10 text-center text-sm font-medium text-slate-500">
                   No trainer earning records match the selected filters.
                 </td>
               </tr>
             ) : (
               rows.map((item, index) => {
-              const { gross, trainerEarning, platformEarning, finalPayable } = getAmounts(item);
+              const stats = trainerStats[item.trainerId];
+              const { gross, trainerEarning, platformEarning, finalPayable, trainerPaid, balancePayable } = getAmounts(item, stats);
+              
+              let displayStatus = item.status;
+              if (!['requested', 'approved', 'processing', 'rejected', 'adjusted'].includes(displayStatus)) {
+                if (trainerPaid > 0) {
+                  if (balancePayable <= 0) {
+                    displayStatus = 'paid';
+                  } else {
+                    displayStatus = 'partially_paid';
+                  }
+                } else {
+                  displayStatus = 'unpaid';
+                }
+              }
+
               return (
                 <tr key={`${item.id || 'earning'}-${index}`} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <p className="font-semibold text-slate-900">{item.trainerName}</p>
                     <p className="text-xs text-slate-500">{item.trainerEmail}</p>
                   </td>
-                  <td className="px-4 py-3 font-medium text-slate-700">{item.sessionTitle}</td>
-                  <td className="px-4 py-3 text-center font-semibold">{item.paidStudents}</td>
-                  <td className="px-4 py-3">{formatCurrency(item.sessionPrice)}</td>
-                  <td className="px-4 py-3 font-semibold">{formatCurrency(gross)}</td>
-                  <td className="px-4 py-3">{item.trainerShare}%</td>
-                  <td className="px-4 py-3 text-emerald-700 font-semibold">{formatCurrency(trainerEarning)}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatCurrency(platformEarning)}</td>
-                  <td className="px-4 py-3 text-rose-700">{formatCurrency(item.refundAdjustment)}</td>
-                  <td className="px-4 py-3 font-bold text-slate-900">{formatCurrency(finalPayable)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+                  <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{item.sessionTitle}</td>
+                  <td className="px-4 py-3 text-center font-semibold whitespace-nowrap">{item.paidStudents}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{formatCurrency(item.sessionPrice)}</td>
+                  <td className="px-4 py-3 font-semibold whitespace-nowrap">{formatCurrency(gross)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{item.trainerShare}%</td>
+                  <td className="px-4 py-3 text-emerald-700 font-semibold whitespace-nowrap">{formatCurrency(trainerEarning)}</td>
+                  <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatCurrency(platformEarning)}</td>
+                  <td className="px-4 py-3 text-rose-700 whitespace-nowrap">{formatCurrency(item.refundAdjustment)}</td>
+                  <td className="px-4 py-3 text-slate-700 font-semibold whitespace-nowrap">{formatCurrency(trainerPaid)}</td>
+                  <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{formatCurrency(balancePayable)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={displayStatus} /></td>
                   <td className="px-4 py-3 text-right">
                     <button
                       type="button"
@@ -214,11 +233,12 @@ const SessionEarningDetails = ({ amounts, session, onClose }) => {
         </div>
 
         <div className="overflow-y-auto p-5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <DetailCard label="Paid Students" value={session.paidStudents} />
             <DetailCard label="Gross" value={formatCurrency(amounts.gross)} />
             <DetailCard label="Trainer Earning" value={formatCurrency(amounts.trainerEarning)} />
-            <DetailCard label="Final Payable" value={formatCurrency(amounts.finalPayable)} />
+            <DetailCard label="Total Paid" value={formatCurrency(amounts.trainerPaid)} />
+            <DetailCard label="Balance Payable" value={formatCurrency(amounts.balancePayable)} />
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">

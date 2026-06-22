@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Calendar, Clock, Video, Image as ImageIcon, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { resolveAssetUrl } from '../../api/axiosClient';
+import { getLiveClassApi } from '../../api/liveClasses';
 import ScheduleSection from './ScheduleSection';
 
 const time24ToAmPm = (time24) => {
@@ -64,11 +65,15 @@ const CreateLiveClass = () => {
     recurrenceType: 'daily',
     trainerInstructions: '',
     recurringDays: [],
+    classType: 'course', // 'course' | 'TIT'
   });
 
   const [thumbnailPreview, setThumbnailPreview] = useState('');
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [errors, setErrors] = useState({});
+
+  const [singleClass, setSingleClass] = useState(null);
+  const [isFetchingSingle, setIsFetchingSingle] = useState(false);
 
   useEffect(() => {
     if (isEditMode && (!classes || classes.length === 0)) {
@@ -77,36 +82,62 @@ const CreateLiveClass = () => {
   }, [dispatch, isEditMode, classes]);
 
   useEffect(() => {
+    if (isEditMode && id) {
+      setIsFetchingSingle(true);
+      getLiveClassApi(id)
+        .then((res) => {
+          const data = res?.data?.class || res?.data || res;
+          setSingleClass(data);
+        })
+        .catch(console.error)
+        .finally(() => setIsFetchingSingle(false));
+    }
+  }, [isEditMode, id]);
+
+  useEffect(() => {
     if (!isEditMode) return;
-    if (!existing) return;
+    
+    const dataToUse = singleClass || existing;
+    if (!dataToUse) return;
 
-    const time = typeof existing.time === 'string' ? existing.time : '';
+    const time = typeof dataToUse.time === 'string' ? dataToUse.time : '';
 
+    let parsedRecurringDays = [];
+    if (Array.isArray(dataToUse.recurringDays)) {
+      parsedRecurringDays = dataToUse.recurringDays;
+    } else if (typeof dataToUse.recurringDays === 'string' && dataToUse.recurringDays.trim() !== '') {
+      try {
+        parsedRecurringDays = dataToUse.recurringDays.startsWith('[')
+          ? JSON.parse(dataToUse.recurringDays)
+          : dataToUse.recurringDays.split(',').map(Number).filter(n => !Number.isNaN(n));
+      } catch (e) {
+        parsedRecurringDays = [];
+      }
+    }
+
+    const isSessionTIT = dataToUse.sectionType === 'TIT' || dataToUse.sessionType === 'TIT' || dataToUse.source === 'admin_tit_classes';
     setFormData({
-      courseId: existing.courseId || existing.course?.id || '',
-      courseName: existing.courseName || '',
-      classTitle: existing.classTitle || existing.title || '',
-      instructor: existing.instructor || existing.trainerName || '',
-      description: existing.description || '',
-      date: existing.date || '',
-      timeInput: amPmToTime24(existing.startTime || existing.time || time),
-      endTimeInput: amPmToTime24(existing.endTime || ''),
-      duration: existing.duration || '1 Hour',
-      meetLink: existing.meetLink || existing.meetingLink || '',
-      thumbnail: existing.thumbnail || '',
-      isRecurring: Boolean(existing.isRecurring),
-      recurrenceType: existing.recurrenceType || 'daily',
-      trainerInstructions: existing.trainerInstructions || '',
-      recurringDays: existing.recurringDays
-        ? (typeof existing.recurringDays === 'string'
-            ? JSON.parse(existing.recurringDays)
-            : existing.recurringDays)
-        : [],
+      courseId: dataToUse.courseId || dataToUse.course_id || dataToUse.course?.id || dataToUse.course?._id || '',
+      courseName: dataToUse.courseName || dataToUse.course?.name || dataToUse.courseTitle || '',
+      classTitle: dataToUse.classTitle || dataToUse.title || '',
+      instructor: dataToUse.instructor || dataToUse.trainerName || dataToUse.trainer?.name || '',
+      description: dataToUse.description || '',
+      date: dataToUse.date || '',
+      timeInput: amPmToTime24(dataToUse.startTime || dataToUse.time || time),
+      endTimeInput: amPmToTime24(dataToUse.endTime || dataToUse.endsAt || dataToUse.end_time || ''),
+      duration: dataToUse.duration || '1 Hour',
+      meetLink: dataToUse.meetLink || dataToUse.meetingLink || '',
+      thumbnail: dataToUse.thumbnail || '',
+      isRecurring: Boolean(dataToUse.isRecurring),
+      recurrenceType: dataToUse.recurrenceType || 'daily',
+      trainerInstructions: dataToUse.trainerInstructions || '',
+      recurringDays: parsedRecurringDays,
+      classType: isSessionTIT ? 'TIT' : 'course',
     });
 
-    setThumbnailPreview(existing.thumbnail ? resolveAssetUrl(existing.thumbnail) : '');
+    setThumbnailPreview(dataToUse.thumbnail ? resolveAssetUrl(dataToUse.thumbnail) : '');
     setThumbnailFile(null);
-  }, [existing, isEditMode]);
+  }, [existing, singleClass, isEditMode]);
 
   const validate = () => {
     const newErrors = {};
@@ -164,24 +195,32 @@ const CreateLiveClass = () => {
     e.preventDefault();
     if (validate()) {
       const formattedTime = time24ToAmPm(formData.timeInput);
+      const isTIT = formData.classType === 'TIT';
       const payload = {
-        sectionType: 'TIT',
-        sessionType: 'TIT',
-        source: 'admin_tit_classes',
+        sectionType: isTIT ? 'TIT' : null,
+        sessionType: isTIT ? 'TIT' : null,
+        source: isTIT ? 'admin_tit_classes' : 'admin_course_classes',
         createdByRole: 'admin',
-        publishState: 'DRAFT',
-        pricingState: 'PENDING_PRICE',
-        requiresAdminReview: true,
+        publishState: isTIT ? 'DRAFT' : 'PUBLISHED',
+        pricingState: isTIT ? 'PENDING_PRICE' : 'FREE',
+        requiresAdminReview: isTIT,
         courseId: formData.courseId.trim(),
+        course_id: formData.courseId.trim(),
         courseName: formData.courseName.trim(),
         classTitle: formData.classTitle.trim(),
         title: formData.classTitle.trim(),
         instructor: formData.instructor.trim(),
+        instructorName: formData.instructor.trim(),
+        trainerName: formData.instructor.trim(),
+        trainer_name: formData.instructor.trim(),
+        teacher: formData.instructor.trim(),
         description: formData.description.trim(),
         date: formData.date,
         time: formattedTime,
         startTime: formData.timeInput,
         endTime: formData.endTimeInput,
+        endsAt: formData.endTimeInput,
+        end_time: formData.endTimeInput,
         duration: formData.duration || '1 Hour',
         meetLink: formData.meetLink.trim(),
         meetingLink: formData.meetLink.trim(),
@@ -191,6 +230,7 @@ const CreateLiveClass = () => {
         thumbnailFile,
         trainerInstructions: formData.trainerInstructions.trim(),
         recurringDays: formData.isRecurring ? JSON.stringify(formData.recurringDays) : undefined,
+        recurring_days: formData.isRecurring ? JSON.stringify(formData.recurringDays) : undefined,
       };
 
       const action = isEditMode
@@ -215,11 +255,17 @@ const CreateLiveClass = () => {
           </Link>
           <div>
             <div className="mb-2 inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">
-              TIT Classes
+              {formData.classType === 'TIT' ? 'TIT Classes' : 'Standard Course Section'}
             </div>
-            <h1 className="text-2xl font-bold text-slate-950">{isEditMode ? 'Edit TIT Class' : 'Create TIT Class'}</h1>
+            <h1 className="text-2xl font-bold text-slate-950">
+              {isEditMode 
+                ? (formData.classType === 'TIT' ? 'Edit TIT Class' : 'Edit Course Class') 
+                : (formData.classType === 'TIT' ? 'Create TIT Class' : 'Create Course Class')}
+            </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              {isEditMode ? 'Update the TIT session details.' : 'Create a TIT session for review, pricing, and student publishing.'}
+              {formData.classType === 'TIT' 
+                ? 'Create a TIT session for review, pricing, and student publishing.' 
+                : 'Create a regular session tracked for attendance.'}
             </p>
           </div>
         </div>
@@ -231,14 +277,34 @@ const CreateLiveClass = () => {
         </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col">
+      <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="divide-y divide-slate-100">
-          <section className="p-6">
-            <div className="mb-5">
-              <h2 className="text-base font-bold text-slate-900">Course And Session Details</h2>
-              <p className="mt-1 text-sm text-slate-500">Map this TIT class to the course and title shown to students.</p>
-            </div>
+            <section className="p-6 bg-slate-50/50">
+              <div className="mb-5">
+                <h2 className="text-base font-bold text-slate-900">Class Type Selection</h2>
+                <p className="mt-1 text-sm text-slate-500">Choose whether this class belongs to a standard course or is a TIT class.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Class Type *</label>
+                  <select
+                    name="classType"
+                    value={formData.classType}
+                    onChange={handleChange}
+                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 font-semibold"
+                  >
+                    <option value="course">Standard Course Section (Tracked for Attendance)</option>
+                    <option value="TIT">TIT Class (Pending Review & Pricing)</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+            
+            <section className="p-6">
+              <div className="mb-5">
+                <h2 className="text-base font-bold text-slate-900">Course And Session Details</h2>
+                <p className="mt-1 text-sm text-slate-500">Map this class to the course and title shown to students.</p>
+              </div>
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-700">Course ID *</label>
@@ -380,28 +446,47 @@ const CreateLiveClass = () => {
           </section>
           </div>
 
-        <aside className="border-t border-slate-100 bg-slate-50/70 p-6">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <h3 className="font-bold">Review And Pricing Flow</h3>
-            <p className="mt-2 leading-relaxed">
-              This TIT class is saved as pending price review. Set the price from Pending Reviews before publishing to students.
-            </p>
-          </div>
+        <aside className="border-t border-slate-100 bg-slate-50/70 p-6 rounded-b-xl">
+          {formData.classType === 'TIT' ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <h3 className="font-bold">Review And Pricing Flow</h3>
+              <p className="mt-2 leading-relaxed">
+                This TIT class is saved as pending price review. Set the price from Pending Reviews before publishing to students.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+              <h3 className="font-bold">Standard Course Class</h3>
+              <p className="mt-2 leading-relaxed">
+                This session will be immediately published to students under standard course listings, and will generate occurrences tracked by the attendance system.
+              </p>
+            </div>
+          )}
 
           <div className="mt-4 border-t border-slate-200 pt-4">
             <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Publish State</h3>
             <div className="mt-4 space-y-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Section</span>
-                <span className="font-semibold text-slate-900">TIT</span>
+                <span className="font-semibold text-slate-900">
+                  {formData.classType === 'TIT' ? 'TIT' : 'Standard Course'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Status</span>
-                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">Pending Price</span>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                  formData.classType === 'TIT' 
+                    ? 'bg-amber-100 text-amber-800' 
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {formData.classType === 'TIT' ? 'Pending Price' : 'Active & Published'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Visibility</span>
-                <span className="font-semibold text-slate-900">After Review</span>
+                <span className="font-semibold text-slate-900">
+                  {formData.classType === 'TIT' ? 'After Review' : 'Immediate'}
+                </span>
               </div>
             </div>
           </div>
@@ -412,7 +497,7 @@ const CreateLiveClass = () => {
               disabled={loading}
               className="flex h-11 w-full sm:w-auto items-center justify-center rounded-lg bg-blue-600 px-8 text-sm font-bold text-white transition hover:bg-blue-700 disabled:bg-blue-300"
             >
-              {loading ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create TIT Class')}
+              {loading ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : (formData.classType === 'TIT' ? 'Create TIT Class' : 'Create Course Class'))}
             </button>
             <Link
               to="/live-classes"
@@ -422,7 +507,6 @@ const CreateLiveClass = () => {
             </Link>
           </div>
         </aside>
-        </div>
       </form>
     </div>
   );

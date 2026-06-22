@@ -233,7 +233,7 @@ const TrainerPayoutsPage = () => {
       const [earningsRes, accountsRes, requestsRes] = await Promise.all([
         fetchAdminTrainerEarnings({ groupBy: 'session' }).catch((error) => ({ _error: error })),
         fetchAdminTrainerPayoutAccounts().catch((error) => ({ _error: error })),
-        fetchAdminTrainerPayoutRequests().catch((error) => ({ _error: error })),
+        fetchAdminTrainerPayoutRequests({ limit: 1000 }).catch((error) => ({ _error: error })),
       ]);
 
       if (!earningsRes?._error) {
@@ -343,8 +343,32 @@ const TrainerPayoutsPage = () => {
     });
   }, [earnings, filters]);
 
+  const trainerStats = useMemo(() => {
+    const stats = {};
+    earnings.forEach((item) => {
+      const gross = Number(item.grossRevenue ?? item.paidStudents * item.sessionPrice);
+      const trainerEarning = Number(item.trainerEarning ?? Math.round((gross * item.trainerShare) / 100));
+      const finalPayable = Number(item.finalPayable ?? Math.max(0, trainerEarning - item.refundAdjustment));
+      if (item.trainerId) {
+        if (!stats[item.trainerId]) {
+          stats[item.trainerId] = { totalEarned: 0, paidAmount: 0 };
+        }
+        stats[item.trainerId].totalEarned += finalPayable;
+      }
+    });
+    payouts.forEach((payout) => {
+      if (payout.trainerId && payout.status === 'paid') {
+        if (!stats[payout.trainerId]) {
+          stats[payout.trainerId] = { totalEarned: 0, paidAmount: 0 };
+        }
+        stats[payout.trainerId].paidAmount += Number(payout.requestedAmount || 0);
+      }
+    });
+    return stats;
+  }, [earnings, payouts]);
+
   const summary = useMemo(() => {
-    return filteredEarnings.reduce(
+    const sumObj = filteredEarnings.reduce(
       (acc, item) => {
         const gross = Number(item.grossRevenue ?? item.paidStudents * item.sessionPrice);
         const trainerEarning = Number(item.trainerEarning ?? Math.round((gross * item.trainerShare) / 100));
@@ -352,12 +376,16 @@ const TrainerPayoutsPage = () => {
         acc.gross += gross;
         acc.trainer += finalPayable;
         acc.platform += gross - trainerEarning;
-        if (item.status !== 'paid') acc.unpaid += finalPayable;
         return acc;
       },
       { gross: 0, trainer: 0, platform: 0, unpaid: 0 }
     );
-  }, [filteredEarnings]);
+    const totalPaid = payouts
+      .filter((p) => p.status === 'paid')
+      .reduce((sum, p) => sum + Number(p.requestedAmount || 0), 0);
+    sumObj.unpaid = Math.max(0, sumObj.trainer - totalPaid);
+    return sumObj;
+  }, [filteredEarnings, payouts]);
 
   const activePayoutsByTrainer = useMemo(() => {
     return payouts.reduce((acc, payout) => {
@@ -438,7 +466,9 @@ const TrainerPayoutsPage = () => {
       showMessage(`Payout request marked ${status}.`);
       await loadPayoutData();
     } catch (actionError) {
-      showMessage(getApiErrorMessage(actionError, `Failed to mark payout ${status}.`));
+      const msg = getApiErrorMessage(actionError, `Failed to mark payout ${status}.`);
+      showMessage(msg);
+      throw actionError;
     }
   };
 
@@ -488,6 +518,7 @@ const TrainerPayoutsPage = () => {
           rows={filteredEarnings}
           loading={isRefreshing}
           onRefresh={refreshPayoutPage}
+          trainerStats={trainerStats}
         />
       ) : null}
       {activeTab === 'pricing' ? <PricingReference pricing={pricing} /> : null}
@@ -505,7 +536,7 @@ const TrainerPayoutsPage = () => {
         />
       ) : null}
       {activeTab === 'requests' ? (
-        <PayoutRequests accounts={accounts} payouts={payouts} selectedPayout={selectedPayout} setSelectedPayoutId={setSelectedPayoutId} rejectNote={payoutRejectNote} setRejectNote={setPayoutRejectNote} onUpdateStatus={updatePayoutStatus} />
+        <PayoutRequests accounts={accounts} payouts={payouts} earnings={earnings} selectedPayout={selectedPayout} setSelectedPayoutId={setSelectedPayoutId} rejectNote={payoutRejectNote} setRejectNote={setPayoutRejectNote} onUpdateStatus={updatePayoutStatus} />
       ) : null}
       {activeTab === 'complete' ? (
         <ManualCompletion payouts={payouts} completionTarget={completionTarget} completablePayouts={completablePayouts} setSelectedPayoutId={setSelectedPayoutId} completionForm={completionForm} setCompletionForm={setCompletionForm} onMarkProcessing={markProcessing} onCompletePayout={completePayout} />

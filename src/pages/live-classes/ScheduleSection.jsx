@@ -67,7 +67,7 @@ const ScheduleSection = ({ formData, handleChange, setFormData, errors }) => {
           </select>
         </div>
 
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 xl:col-span-4">
           <label className="mb-2 flex items-center text-sm font-semibold text-slate-700">
             <Video className="mr-2 h-4 w-4 text-slate-400" /> Google Meet Link *
           </label>
@@ -82,7 +82,7 @@ const ScheduleSection = ({ formData, handleChange, setFormData, errors }) => {
           {errors.meetLink && <p className="mt-1 text-xs font-medium text-red-500">{errors.meetLink}</p>}
         </div>
 
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 xl:col-span-2">
           <label className="mb-2 block text-sm font-semibold text-slate-700">Recurrence</label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px]">
             <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700">
@@ -110,7 +110,7 @@ const ScheduleSection = ({ formData, handleChange, setFormData, errors }) => {
         </div>
 
         {formData.isRecurring && (
-          <div className="md:col-span-2 lg:col-span-4">
+          <div className="md:col-span-2 xl:col-span-2">
             <label className="mb-2 block text-sm font-semibold text-slate-700">Recurring Days of the Week</label>
             <div className="flex flex-wrap gap-2">
               {[
@@ -126,7 +126,7 @@ const ScheduleSection = ({ formData, handleChange, setFormData, errors }) => {
                 return (
                   <label
                     key={day.value}
-                    className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-4 text-xs font-semibold transition ${
+                    className={`relative flex h-10 cursor-pointer items-center justify-center rounded-lg border px-4 text-xs font-semibold transition ${
                       isChecked
                         ? 'border-blue-600 bg-blue-50 text-blue-700'
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -152,7 +152,7 @@ const ScheduleSection = ({ formData, handleChange, setFormData, errors }) => {
               })}
             </div>
             <p className="mt-1.5 text-xs text-slate-400">
-              Schedules occurrences only on these checked weekdays (e.g. Monday to Thursday).
+              Checked days only.
             </p>
           </div>
         )}
