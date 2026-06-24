@@ -22,7 +22,7 @@ const AttendanceOverview = () => {
         getAllAttendanceRecords()
       ]);
       setOverviewData(overviewRes?.data || overviewRes || null);
-      setAttendanceRecords(recordsRes?.data || recordsRes || []);
+      setAttendanceRecords(recordsRes?.records || recordsRes?.data?.records || []);
     } catch (err) {
       toast.error('Failed to load attendance data');
       console.error(err);
