@@ -33,7 +33,7 @@ const buildAuthPayload = ({ fullName, email, password }) => {
   };
 };
 
-const SHOW_REGISTRATION = false;
+const SHOW_REGISTRATION = true;
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -165,9 +165,8 @@ const Login = () => {
                   setError('');
                   setSuccess('');
                 }}
-                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  mode === 'login' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${mode === 'login' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
+                  }`}
               >
                 Login
               </button>
@@ -178,9 +177,8 @@ const Login = () => {
                   setError('');
                   setSuccess('');
                 }}
-                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  mode === 'register' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
-                }`}
+                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${mode === 'register' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
+                  }`}
               >
                 Register
               </button>

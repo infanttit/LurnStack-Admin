@@ -28,6 +28,12 @@ export const normalizeAttendanceRecord = (record = {}) => ({
   studentAttendanceId: record.studentAttendanceId || record.attendanceId || record.id || '',
   sessionId: record.sessionId || record.session?.id || '',
   courseId: record.courseId || record.course?.id || '',
+  studentId: record.studentId || record.student?.id || record.student?._id || '',
+  trainerId: record.trainerId || record.trainer?.id || record.trainer?._id || '',
+  studentName: record.studentName || record.student?.fullName || record.student?.name || record.studentName || '',
+  trainerName: record.trainerName || record.trainer?.fullName || record.trainer?.name || record.trainerName || '',
+  courseName: record.courseName || record.course?.title || record.course?.name || record.courseName || '',
+  sessionTitle: record.sessionTitle || record.session?.title || record.session?.classTitle || record.sessionTitle || '',
   date: record.date || record.occurrenceDate || record.startsAt || '',
   occurrenceDate: record.occurrenceDate || record.date || '',
   status: normalizeAttendanceStatus(record.status || record.attendanceStatus),
@@ -93,6 +99,9 @@ export const normalizeTrainerAttendance = (trainer = {}) => {
     status: normalizeAttendanceStatus(trainer.status),
     durationMinutes: Number(trainer.durationMinutes ?? Math.round(Number(trainer.totalDurationSeconds || 0) / 60)),
     totalDurationSeconds: Number(trainer.totalDurationSeconds ?? 0),
+    sessionId: trainer.sessionId || trainer.latestSessionId || '',
+    sessionTitle: trainer.sessionTitle || trainer.latestSessionTitle || '',
+    date: trainer.date || (trainer.startsAt ? trainer.startsAt.slice(0, 10) : ''),
   };
 };
 
@@ -250,6 +259,33 @@ export const getAllAttendanceRecords = async (date) => {
 export const getAllCourseAttendanceOverview = async (date) => {
   const response = await axiosClient.get('/api/admin/attendance/courses', { params: { date } });
   return normalizeResponse(response);
+};
+
+export const getGroupedCourseAttendance = async () => {
+  const response = await axiosClient.get('/api/admin/attendance/courses/grouped');
+  return response.data;
+};
+
+export const getGroupedCourseAttendanceDetail = async (courseKey) => {
+  const response = await axiosClient.get(`/api/admin/attendance/courses/${encodeURIComponent(courseKey)}/grouped`);
+  return response.data;
+};
+
+export const getGroupedCourseDayAttendance = async (courseKey, dateString) => {
+  const response = await axiosClient.get(
+    `/api/admin/attendance/courses/${encodeURIComponent(courseKey)}/dates/${encodeURIComponent(dateString)}`
+  );
+  return response.data;
+};
+
+export const getGroupedStudentAttendance = async (studentId) => {
+  const response = await axiosClient.get(`/api/admin/attendance/students/${encodeURIComponent(studentId)}/grouped`);
+  return response.data;
+};
+
+export const getGroupedTrainerAttendance = async (trainerId) => {
+  const response = await axiosClient.get(`/api/admin/attendance/trainers/${encodeURIComponent(trainerId)}/grouped`);
+  return response.data;
 };
 
 export const getCourseAttendanceSummary = async (courseId) => {

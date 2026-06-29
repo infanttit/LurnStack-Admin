@@ -1,239 +1,275 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAttendanceOverview, getAllAttendanceRecords } from '../../api/attendance';
-import { BookOpen, Users, Video, Percent, CheckCircle, Clock, XCircle, BarChart3, Search, Calendar, User } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { BookOpen, Bug, Search, User, Users } from 'lucide-react';
+import { fetchAdminStudents, fetchAdminTrainers } from '../../api/adminDashboard';
+import {
+  getAllAttendanceRecords,
+  getGroupedCourseAttendance,
+  getGroupedStudentAttendance,
+  getGroupedTrainerAttendance,
+} from '../../api/attendance';
+import { getApiErrorMessage } from '../../api/axiosClient';
+import ErrorBanner from '../../components/ErrorBanner';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
-const AttendanceOverview = () => {
-  const [overviewData, setOverviewData] = useState(null);
-  const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+const tabs = [
+  { key: 'courses', label: 'Courses', icon: BookOpen },
+  { key: 'students', label: 'Students', icon: Users },
+  { key: 'trainers', label: 'Trainers', icon: User },
+  { key: 'records', label: 'Records', icon: Bug },
+];
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+const activeCourseStatuses = ['live', 'running', 'upcoming'];
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [overviewRes, recordsRes] = await Promise.all([
-        getAttendanceOverview(),
-        getAllAttendanceRecords()
-      ]);
-      setOverviewData(overviewRes?.data || overviewRes || null);
-      setAttendanceRecords(recordsRes?.records || recordsRes?.data?.records || []);
-    } catch (err) {
-      toast.error('Failed to load attendance data');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatDateTime = (isoString) => {
-    if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-  };
-  
-  const formatTimeOnly = (isoString) => {
-    if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const getStatusBadge = (status) => {
-    const s = status?.toLowerCase();
-    if (s === 'pending') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Tracking</span>;
-    if (s === 'present' || s === 'joined') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Present</span>;
-    if (s === 'late') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Late</span>;
-    if (s === 'absent') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">Absent</span>;
-    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{status || 'Unknown'}</span>;
-  };
-
-
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
+const unwrap = (payload) => payload?.data ?? payload ?? {};
+const asArray = (value) => (Array.isArray(value) ? value : []);
+const pickList = (payload, keys) => {
+  const data = unwrap(payload);
+  if (Array.isArray(data)) return data;
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) return data[key];
   }
+  return [];
+};
+const value = (...items) => items.find((item) => item !== undefined && item !== null && item !== '') ?? '';
+const count = (...items) => Number(value(...items, 0)) || 0;
+const percent = (...items) => count(...items);
+
+const formatDate = (date) => {
+  if (!date) return 'N/A';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return String(date);
+  return parsed.toLocaleDateString();
+};
+
+const formatTime = (date) => {
+  if (!date) return 'N/A';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return String(date);
+  return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const getId = (row) => value(row?.id, row?._id, row?.studentId, row?.trainerId);
+const getPersonName = (row, fallback = 'Unnamed') => value(row?.fullName, row?.name, row?.studentName, row?.trainerName, fallback);
+
+const StatusBadge = ({ status }) => {
+  const normalized = String(status || 'pending').toLowerCase();
+  const classes = {
+    live: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    running: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    upcoming: 'bg-sky-50 text-sky-700 border-sky-200',
+    completed: 'bg-slate-100 text-slate-700 border-slate-200',
+    paused: 'bg-amber-50 text-amber-700 border-amber-200',
+    cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+    present: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    late: 'bg-amber-50 text-amber-700 border-amber-200',
+    absent: 'bg-rose-50 text-rose-700 border-rose-200',
+    pending: 'bg-gray-50 text-gray-700 border-gray-200',
+  };
+  return (
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${classes[normalized] || classes.pending}`}>
+      {normalized}
+    </span>
+  );
+};
+
+const SearchBox = ({ value: searchValue, onChange, placeholder }) => (
+  <div className="relative w-full sm:w-72">
+    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+    <input
+      value={searchValue}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+    />
+  </div>
+);
+
+const EmptyRow = ({ colSpan, message }) => (
+  <tr>
+    <td colSpan={colSpan} className="px-6 py-10 text-center text-sm font-medium text-slate-500">
+      {message}
+    </td>
+  </tr>
+);
+
+const MetricStrip = ({ items }) => (
+  <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+    {items.map((item) => (
+      <div key={item.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+        <p className="mt-2 text-xl font-black text-slate-900">{item.value}</p>
+      </div>
+    ))}
+  </div>
+);
+
+const normalizeCourse = (course) => ({
+  ...course,
+  courseKey: value(course.courseKey, course.key, course.courseId, course.id, course._id, course.courseTitle, course.courseName),
+  courseName: value(course.courseName, course.courseTitle, course.title, 'Untitled Course'),
+  trainerName: value(course.trainerName, course.trainer?.fullName, course.trainer?.name, 'Unassigned'),
+  status: value(course.status, course.runtimeStatus, course.courseStatus, 'upcoming'),
+  totalStudents: count(course.totalStudents, course.studentCount),
+  totalSessions: count(course.totalSessions, course.sessionCount),
+  completedSessions: count(course.completedSessions, course.completedSessionCount),
+  upcomingSessions: count(course.upcomingSessions, course.upcomingSessionCount),
+  presentCount: count(course.presentCount, course.present),
+  lateCount: count(course.lateCount, course.late),
+  absentCount: count(course.absentCount, course.absent),
+  pendingCount: count(course.pendingCount, course.pending),
+  attendancePercentage: percent(course.averageAttendancePercentage, course.attendancePercentage, course.avgAttendancePercentage),
+});
+
+const normalizeGroupedCourse = (course) => ({
+  ...course,
+  courseName: value(course.courseName, course.courseTitle, course.title, 'Course'),
+  trainerName: value(course.trainerName, course.trainer?.fullName, course.trainer?.name, 'Unassigned'),
+  summary: course.summary || course.overallSummary || course,
+  courses: asArray(course.courses || course.groupedCourses),
+  records: asArray(course.records || course.sessions || course.occurrences || course.attendance),
+});
+
+const PersonPicker = ({ rows, selectedId, onSelect, search, onSearch, placeholder, emptyLabel }) => {
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) => {
+      const haystack = [getPersonName(row), row.email, row.phone, row.mobile, getId(row)].join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [rows, search]);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Attendance Overview</h2>
-          <p className="text-sm text-gray-500 mt-1">Monitor attendance health across all courses</p>
-        </div>
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 p-4">
+        <SearchBox value={search} onChange={onSearch} placeholder={placeholder} />
       </div>
-
-      {/* Macro Summary Cards */}
-      {overviewData && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
-              <BookOpen size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Courses</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.totalCourses || 0}</p>
-            </div>
-          </div>
-          
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-purple-50 rounded-lg text-purple-600">
-              <Users size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Students</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.totalStudents || 0}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-              <Video size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Sessions</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.totalSessions || 0}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-              <BarChart3 size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Avg Attendance</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.averageAttendancePercentage || 0}%</p>
-            </div>
-          </div>
-          
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-              <CheckCircle size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Present Records</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.presentCount || 0}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
-              <Clock size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Late Records</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.lateCount || 0}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-rose-50 rounded-lg text-rose-600">
-              <XCircle size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Absent Records</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.absentCount || 0}</p>
-            </div>
-          </div>
-          
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-            <div className="p-3 bg-cyan-50 rounded-lg text-cyan-600">
-              <Users size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total Trainers</p>
-              <p className="text-2xl font-bold text-gray-900">{overviewData.totalTrainers || 0}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Session Lookup */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Session Lookup</h3>
-          <p className="text-sm text-gray-500">Enter a session ID to view detailed attendance records.</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <input 
-            type="text" 
-            placeholder="Enter Session ID..." 
-            className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            id="session-lookup-input"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                const val = e.target.value;
-                if (val) navigate(`/sessions/${val}/attendance`);
-              }
-            }}
-          />
-          <button 
-            onClick={() => {
-              const val = document.getElementById('session-lookup-input').value;
-              if (val) navigate(`/sessions/${val}/attendance`);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
-          >
-            <Search size={16} />
-            <span>Lookup</span>
-          </button>
-        </div>
+      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+        {filtered.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm font-medium text-slate-500">{emptyLabel}</div>
+        ) : (
+          filtered.map((row) => {
+            const id = getId(row);
+            return (
+              <button
+                key={id || getPersonName(row)}
+                type="button"
+                onClick={() => id && onSelect(id)}
+                className={`flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-slate-50 ${String(selectedId) === String(id) ? 'bg-blue-50' : ''}`}
+              >
+                <span>
+                  <span className="block text-sm font-bold text-slate-900">{getPersonName(row)}</span>
+                  <span className="block text-xs text-slate-500">{value(row.email, row.phone, id, 'No contact')}</span>
+                </span>
+                <span className="text-xs font-bold text-blue-600">Select</span>
+              </button>
+            );
+          })
+        )}
       </div>
+    </div>
+  );
+};
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">All Attendance Records</h3>
+const CoursesTab = () => {
+  const navigate = useNavigate();
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadCourses = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await getGroupedCourseAttendance();
+        if (!active) return;
+        setCourses(pickList(response, ['courses', 'items', 'records', 'data']).map(normalizeCourse));
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load grouped course attendance'));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadCourses();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredCourses = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const sorted = [...courses].sort((a, b) => {
+      const aActive = activeCourseStatuses.includes(String(a.status).toLowerCase()) ? 0 : 1;
+      const bActive = activeCourseStatuses.includes(String(b.status).toLowerCase()) ? 0 : 1;
+      return aActive - bActive || String(a.courseName).localeCompare(String(b.courseName));
+    });
+    if (!query) return sorted;
+    return sorted.filter((course) => `${course.courseName} ${course.trainerName} ${course.status}`.toLowerCase().includes(query));
+  }, [courses, search]);
+
+  if (loading) return <LoadingSpinner label="Loading grouped courses..." />;
+
+  return (
+    <div className="space-y-4">
+      {error ? <ErrorBanner message={error} /> : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">Course Attendance</h3>
+          <p className="text-sm text-slate-500">Live, running, and upcoming courses are shown first.</p>
         </div>
+        <SearchBox value={search} onChange={setSearch} placeholder="Search course or trainer..." />
+      </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-600">
-            <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200">
+          <table className="w-full min-w-[1320px] text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-4 whitespace-nowrap">Date</th>
-                <th className="px-4 py-4">Course</th>
-                <th className="px-4 py-4">Session</th>
-                <th className="px-4 py-4">Trainer</th>
-                <th className="px-4 py-4">Student</th>
-                <th className="px-4 py-4">Status</th>
-                <th className="px-4 py-4 whitespace-nowrap">Total Duration</th>
-                <th className="px-4 py-4 whitespace-nowrap">First Join</th>
-                <th className="px-4 py-4 whitespace-nowrap">Last Join</th>
-                <th className="px-4 py-4 text-center">Join Count</th>
+                <th className="px-4 py-3">Course Name</th>
+                <th className="px-4 py-3">Trainer</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-center">Total Students</th>
+                <th className="px-4 py-3 text-center">Total Sessions</th>
+                <th className="px-4 py-3 text-center">Completed Sessions</th>
+                <th className="px-4 py-3 text-center">Upcoming Sessions</th>
+                <th className="px-4 py-3 text-center">Present</th>
+                <th className="px-4 py-3 text-center">Late</th>
+                <th className="px-4 py-3 text-center">Absent</th>
+                <th className="px-4 py-3 text-center">Pending</th>
+                <th className="px-4 py-3 text-center">Average Attendance %</th>
+                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {attendanceRecords.length === 0 ? (
-                <tr>
-                  <td colSpan="10" className="px-6 py-8 text-center text-gray-500">
-                    No attendance records found.
-                  </td>
-                </tr>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {filteredCourses.length === 0 ? (
+                <EmptyRow colSpan={13} message="No grouped course attendance found." />
               ) : (
-                attendanceRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        <Calendar size={14} className="text-gray-400" />
-                        <span>{record.date ? new Date(record.date).toLocaleDateString() : 'N/A'}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{record.courseName}</td>
-                    <td className="px-4 py-3">{record.sessionTitle}</td>
-                    <td className="px-4 py-3">{record.trainerName}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{record.studentName}</td>
-                    <td className="px-4 py-3">{getStatusBadge(record.status)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{record.durationMinutes} min</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{formatTimeOnly(record.firstJoinedAt)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{formatTimeOnly(record.lastJoinedAt)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                        {record.joinCount || 0}
-                      </span>
+                filteredCourses.map((course) => (
+                  <tr key={course.courseKey || course.courseName} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-bold text-slate-900">{course.courseName}</td>
+                    <td className="px-4 py-3">{course.trainerName}</td>
+                    <td className="px-4 py-3"><StatusBadge status={course.status} /></td>
+                    <td className="px-4 py-3 text-center font-semibold">{course.totalStudents}</td>
+                    <td className="px-4 py-3 text-center font-semibold">{course.totalSessions}</td>
+                    <td className="px-4 py-3 text-center font-semibold">{course.completedSessions}</td>
+                    <td className="px-4 py-3 text-center font-semibold">{course.upcomingSessions}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-emerald-600">{course.presentCount}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-amber-600">{course.lateCount}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-rose-600">{course.absentCount}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-slate-500">{course.pendingCount}</td>
+                    <td className="px-4 py-3 text-center font-black text-slate-900">{course.attendancePercentage}%</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        disabled={!course.courseKey}
+                        onClick={() => navigate(`/courses/${encodeURIComponent(course.courseKey)}/attendance`)}
+                        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        View Attendance
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -246,5 +282,351 @@ const AttendanceOverview = () => {
   );
 };
 
-export default AttendanceOverview;
+const GroupedCourseRecords = ({ rows, personType }) => {
+  if (!rows.length) {
+    return <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-500">No grouped attendance records found.</div>;
+  }
 
+  return (
+    <div className="space-y-4">
+      {rows.map((course, index) => {
+        const records = asArray(course.records || course.sessions || course.occurrences || course.dates || course.attendance);
+        const key = value(course.courseKey, course.courseId, course.courseName, index);
+        return (
+          <div key={key} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
+              <h4 className="font-black text-slate-900">{value(course.courseName, course.courseTitle, course.title, 'Course')}</h4>
+              <p className="text-sm text-slate-500">Course-wise grouped attendance</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead className="border-b border-slate-200 bg-white text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Session</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-center">Duration Minutes</th>
+                    <th className="px-4 py-3 text-center">Join Count</th>
+                    <th className="px-4 py-3">First Joined</th>
+                    <th className="px-4 py-3">Last Joined</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {records.length === 0 ? (
+                    <EmptyRow colSpan={7} message={`No date/session ${personType} records found for this course.`} />
+                  ) : (
+                    records.map((record, recordIndex) => (
+                      <tr key={value(record.attendanceId, record.id, `${key}-${recordIndex}`)}>
+                        <td className="px-4 py-3 font-semibold text-slate-900">{formatDate(value(record.date, record.occurrenceDate, record.startsAt))}</td>
+                        <td className="px-4 py-3">{value(record.sessionTitle, record.title, 'Session')}</td>
+                        <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
+                        <td className="px-4 py-3 text-center font-semibold">{count(record.durationMinutes)}</td>
+                        <td className="px-4 py-3 text-center font-semibold">{count(record.joinCount)}</td>
+                        <td className="px-4 py-3">{formatTime(record.firstJoinedAt || record.startTime)}</td>
+                        <td className="px-4 py-3">{formatTime(record.lastJoinedAt || record.endTime)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const StudentGroupedView = ({ data }) => {
+  if (!data) return null;
+  const grouped = normalizeGroupedCourse(unwrap(data));
+  const summary = grouped.summary || {};
+  const courses = asArray(grouped.courses.length ? grouped.courses : grouped.records);
+  const profile = unwrap(data).student || unwrap(data).profile || unwrap(data);
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Student profile summary</p>
+        <h3 className="mt-2 text-xl font-black text-slate-900">{getPersonName(profile, value(unwrap(data).studentName, 'Student'))}</h3>
+        <p className="text-sm text-slate-500">{value(profile.email, profile.phone, profile.studentId, '')}</p>
+      </div>
+      <MetricStrip items={[
+        { label: 'Attendance %', value: `${percent(summary.attendancePercentage, summary.averageAttendancePercentage)}%` },
+        { label: 'Present', value: count(summary.presentCount) },
+        { label: 'Late', value: count(summary.lateCount) },
+        { label: 'Absent', value: count(summary.absentCount) },
+        { label: 'Pending', value: count(summary.pendingCount) },
+        { label: 'Total Records', value: count(summary.totalRecords, summary.totalSessions) },
+      ]} />
+      <GroupedCourseRecords rows={courses} personType="student" />
+    </div>
+  );
+};
+
+const TrainerGroupedView = ({ data }) => {
+  if (!data) return null;
+  const grouped = normalizeGroupedCourse(unwrap(data));
+  const summary = grouped.summary || {};
+  const courses = asArray(grouped.courses.length ? grouped.courses : grouped.records);
+  const profile = unwrap(data).trainer || unwrap(data).profile || unwrap(data);
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Trainer profile summary</p>
+        <h3 className="mt-2 text-xl font-black text-slate-900">{getPersonName(profile, value(unwrap(data).trainerName, 'Trainer'))}</h3>
+        <p className="text-sm text-slate-500">{value(profile.email, profile.phone, profile.trainerId, '')}</p>
+      </div>
+      <MetricStrip items={[
+        { label: 'Total Sessions', value: count(summary.totalSessions, summary.totalRecords) },
+        { label: 'Completed', value: count(summary.completedSessions) },
+        { label: 'Upcoming', value: count(summary.upcomingSessions) },
+        { label: 'Present', value: count(summary.presentCount) },
+        { label: 'Late', value: count(summary.lateCount) },
+        { label: 'Absent', value: count(summary.absentCount) },
+      ]} />
+      <GroupedCourseRecords rows={courses} personType="trainer" />
+    </div>
+  );
+};
+
+const StudentsTab = () => {
+  const [students, setStudents] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [search, setSearch] = useState('');
+  const [data, setData] = useState(null);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadStudents = async () => {
+      setLoadingList(true);
+      setError('');
+      try {
+        const response = await fetchAdminStudents();
+        if (active) setStudents(asArray(response?.data));
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load students'));
+      } finally {
+        if (active) setLoadingList(false);
+      }
+    };
+    loadStudents();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let active = true;
+    const loadDetail = async () => {
+      setLoadingDetail(true);
+      setError('');
+      try {
+        const response = await getGroupedStudentAttendance(selectedId);
+        if (active) setData(response);
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load grouped student attendance'));
+      } finally {
+        if (active) setLoadingDetail(false);
+      }
+    };
+    loadDetail();
+    return () => { active = false; };
+  }, [selectedId]);
+
+  if (loadingList) return <LoadingSpinner label="Loading students..." />;
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+      <PersonPicker rows={students} selectedId={selectedId} onSelect={setSelectedId} search={search} onSearch={setSearch} placeholder="Search students..." emptyLabel="No students found." />
+      <div className="space-y-4">
+        {error ? <ErrorBanner message={error} /> : null}
+        {!selectedId ? <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-500">Select a student to view grouped attendance.</div> : null}
+        {loadingDetail ? <LoadingSpinner label="Loading student attendance..." /> : <StudentGroupedView data={data} />}
+      </div>
+    </div>
+  );
+};
+
+const TrainersTab = () => {
+  const [trainers, setTrainers] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [search, setSearch] = useState('');
+  const [data, setData] = useState(null);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadTrainers = async () => {
+      setLoadingList(true);
+      setError('');
+      try {
+        const response = await fetchAdminTrainers();
+        if (active) setTrainers(asArray(response?.data));
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load trainers'));
+      } finally {
+        if (active) setLoadingList(false);
+      }
+    };
+    loadTrainers();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let active = true;
+    const loadDetail = async () => {
+      setLoadingDetail(true);
+      setError('');
+      try {
+        const response = await getGroupedTrainerAttendance(selectedId);
+        if (active) setData(response);
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load grouped trainer attendance'));
+      } finally {
+        if (active) setLoadingDetail(false);
+      }
+    };
+    loadDetail();
+    return () => { active = false; };
+  }, [selectedId]);
+
+  if (loadingList) return <LoadingSpinner label="Loading trainers..." />;
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+      <PersonPicker rows={trainers} selectedId={selectedId} onSelect={setSelectedId} search={search} onSearch={setSearch} placeholder="Search trainers..." emptyLabel="No trainers found." />
+      <div className="space-y-4">
+        {error ? <ErrorBanner message={error} /> : null}
+        {!selectedId ? <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-500">Select a trainer to view grouped attendance.</div> : null}
+        {loadingDetail ? <LoadingSpinner label="Loading trainer attendance..." /> : <TrainerGroupedView data={data} />}
+      </div>
+    </div>
+  );
+};
+
+const RecordsTab = () => {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadRecords = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await getAllAttendanceRecords();
+        if (active) setRecords(pickList(response, ['records', 'attendance', 'items', 'students']));
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load raw attendance records'));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadRecords();
+    return () => { active = false; };
+  }, []);
+
+  const filteredRecords = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return records;
+    return records.filter((record) => JSON.stringify(record).toLowerCase().includes(query));
+  }, [records, search]);
+
+  if (loading) return <LoadingSpinner label="Loading raw records..." />;
+
+  return (
+    <div className="space-y-4">
+      {error ? <ErrorBanner message={error} /> : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">Raw Attendance Records</h3>
+          <p className="text-sm text-slate-500">Filtering and debugging only. Course grouped flow is the main experience.</p>
+        </div>
+        <SearchBox value={search} onChange={setSearch} placeholder="Search raw records..." />
+      </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Student</th>
+                <th className="px-4 py-3">Course</th>
+                <th className="px-4 py-3">Session</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-center">Duration</th>
+                <th className="px-4 py-3 text-center">Join Count</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {filteredRecords.length === 0 ? (
+                <EmptyRow colSpan={7} message="No raw attendance records found." />
+              ) : (
+                filteredRecords.map((record, index) => (
+                  <tr key={value(record.attendanceId, record.id, index)}>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{formatDate(value(record.date, record.occurrenceDate, record.startsAt))}</td>
+                    <td className="px-4 py-3">{value(record.studentName, record.student?.name, record.student?.fullName, 'N/A')}</td>
+                    <td className="px-4 py-3">{value(record.courseName, record.courseTitle, 'N/A')}</td>
+                    <td className="px-4 py-3">{value(record.sessionTitle, record.title, 'N/A')}</td>
+                    <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
+                    <td className="px-4 py-3 text-center font-semibold">{count(record.durationMinutes)}</td>
+                    <td className="px-4 py-3 text-center font-semibold">{count(record.joinCount)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AttendanceOverview = () => {
+  const [activeTab, setActiveTab] = useState('courses');
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">Admin Attendance</h2>
+        <p className="mt-1 text-sm text-slate-500">Grouped attendance by course, student, trainer, and raw records.</p>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="flex min-w-max gap-2">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const selected = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition ${selected ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeTab === 'courses' ? <CoursesTab /> : null}
+      {activeTab === 'students' ? <StudentsTab /> : null}
+      {activeTab === 'trainers' ? <TrainersTab /> : null}
+      {activeTab === 'records' ? <RecordsTab /> : null}
+    </div>
+  );
+};
+
+export default AttendanceOverview;

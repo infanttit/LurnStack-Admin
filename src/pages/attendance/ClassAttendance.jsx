@@ -6,9 +6,7 @@ import { ArrowLeft, Download, Search, CheckCircle, Clock } from 'lucide-react';
 
 const PaginationControls = ({ currentPage, totalItems, rowsPerPage, onPageChange }) => {
   const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
-  if (totalPages <= 1) return null;
-
-  const startEntry = (currentPage - 1) * rowsPerPage + 1;
+  const startEntry = totalItems === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endEntry = Math.min(currentPage * rowsPerPage, totalItems);
 
   return (
