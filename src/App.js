@@ -18,6 +18,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import AttendanceOverview from './pages/attendance/AttendanceOverview';
 import CourseAttendanceDetail from './pages/attendance/CourseAttendanceDetail';
+import CourseAttendanceDay from './pages/attendance/CourseAttendanceDay';
 import SessionAttendanceRoster from './pages/attendance/SessionAttendanceRoster';
 import SessionOccurrences from './pages/attendance/SessionOccurrences';
 import TrainerAttendanceReport from './pages/attendance/TrainerAttendanceReport';
@@ -64,6 +65,7 @@ function App() {
           {/* Attendance Routes */}
           <Route path="attendance" element={<AttendanceOverview />} />
           <Route path="courses/:courseId/attendance" element={<CourseAttendanceDetail />} />
+          <Route path="courses/:courseKey/attendance/:date" element={<CourseAttendanceDay />} />
           <Route path="sessions/:sessionId/attendance" element={<SessionOccurrences />} />
           <Route path="sessions/:sessionId/attendance/:date" element={<SessionAttendanceRoster />} />
           <Route path="trainers/:trainerId/attendance" element={<TrainerAttendanceReport />} />

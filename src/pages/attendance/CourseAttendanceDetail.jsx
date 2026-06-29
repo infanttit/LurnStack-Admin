@@ -1,287 +1,233 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { getCourseAttendanceSummary } from '../../api/attendance';
-import { toast } from 'react-toastify';
-import { Users, UserCheck, Clock, UserX, ArrowLeft, Calendar, Search } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Calendar, Search } from 'lucide-react';
+import { getGroupedCourseAttendanceDetail } from '../../api/attendance';
+import { getApiErrorMessage } from '../../api/axiosClient';
+import ErrorBanner from '../../components/ErrorBanner';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
-const PaginationControls = ({ currentPage, totalItems, rowsPerPage, onPageChange }) => {
-  const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
-  if (totalPages <= 1) return null;
+const unwrap = (payload) => payload?.data ?? payload ?? {};
+const asArray = (value) => (Array.isArray(value) ? value : []);
+const value = (...items) => items.find((item) => item !== undefined && item !== null && item !== '') ?? '';
+const count = (...items) => Number(value(...items, 0)) || 0;
 
-  const startEntry = (currentPage - 1) * rowsPerPage + 1;
-  const endEntry = Math.min(currentPage * rowsPerPage, totalItems);
-
-  return (
-    <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-6 py-4 sm:flex-row bg-slate-50/50">
-      <p className="text-xs font-semibold text-slate-500">
-        Showing <span className="font-bold text-slate-900">{startEntry}</span> to{' '}
-        <span className="font-bold text-slate-900">{endEntry}</span> of{' '}
-        <span className="font-bold text-slate-900">{totalItems}</span> entries
-      </p>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={currentPage === 1}
-          onClick={() => onPageChange(currentPage - 1)}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          disabled={currentPage === totalPages}
-          onClick={() => onPageChange(currentPage + 1)}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  );
+const pickOccurrences = (data) => {
+  if (Array.isArray(data)) return data;
+  return asArray(data.occurrences || data.sessions || data.dates || data.records || data.items);
 };
 
+const formatDate = (date) => {
+  if (!date) return 'N/A';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return String(date);
+  return parsed.toLocaleDateString();
+};
+
+const formatDateKey = (date) => {
+  if (!date) return '';
+  const raw = String(date);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toISOString().slice(0, 10);
+};
+
+const formatTime = (start, end) => {
+  const makeTime = (date) => {
+    if (!date) return '';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return String(date);
+    return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  const startTime = makeTime(start);
+  const endTime = makeTime(end);
+  if (startTime && endTime) return `${startTime} - ${endTime}`;
+  return startTime || endTime || 'N/A';
+};
+
+const StatusBadge = ({ status }) => {
+  const normalized = String(status || 'pending').toLowerCase();
+  const classes = {
+    live: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    running: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    upcoming: 'bg-sky-50 text-sky-700 border-sky-200',
+    scheduled: 'bg-sky-50 text-sky-700 border-sky-200',
+    completed: 'bg-slate-100 text-slate-700 border-slate-200',
+    paused: 'bg-amber-50 text-amber-700 border-amber-200',
+    cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+    present: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    late: 'bg-amber-50 text-amber-700 border-amber-200',
+    absent: 'bg-rose-50 text-rose-700 border-rose-200',
+    pending: 'bg-gray-50 text-gray-700 border-gray-200',
+  };
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${classes[normalized] || classes.pending}`}>{normalized}</span>;
+};
+
+const SummaryCard = ({ label, value: cardValue }) => (
+  <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p>
+    <p className="mt-2 text-xl font-black text-slate-900">{cardValue}</p>
+  </div>
+);
+
 const CourseAttendanceDetail = () => {
-  const { courseId } = useParams();
+  const { courseId: courseKey } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchSummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseId]);
-
-  // Reset page when search or status filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
-
-  const fetchSummary = async () => {
-    try {
+    let active = true;
+    const loadCourse = async () => {
       setLoading(true);
-      const res = await getCourseAttendanceSummary(courseId);
-      setData(res.data || res);
-    } catch (err) {
-      toast.error('Failed to load course attendance summary');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      setError('');
+      try {
+        const response = await getGroupedCourseAttendanceDetail(courseKey);
+        if (active) setData(unwrap(response));
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load grouped course attendance'));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadCourse();
+    return () => {
+      active = false;
+    };
+  }, [courseKey]);
 
-  const getStatusBadge = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Completed</span>;
-      case 'live':
-        return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800 animate-pulse">Live</span>;
-      case 'scheduled':
-      default:
-        return <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Scheduled</span>;
-    }
-  };
+  const summary = data?.summary || data || {};
+  const occurrences = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const rows = pickOccurrences(data || {}).map((row) => ({
+      ...row,
+      date: value(row.date, row.occurrenceDate, row.startsAt),
+      runtimeStatus: value(row.runtimeStatus, row.status, row.sessionStatus, 'upcoming'),
+      trainerStatus: value(row.trainerStatus, row.trainerAttendance?.status, 'pending'),
+      totalStudents: count(row.totalStudents, row.studentCount),
+      presentCount: count(row.presentCount, row.present),
+      lateCount: count(row.lateCount, row.late),
+      absentCount: count(row.absentCount, row.absent),
+      pendingCount: count(row.pendingCount, row.pending),
+      attendancePercentage: count(row.attendancePercentage, row.averageAttendancePercentage),
+    }));
+    if (!query) return rows;
+    return rows.filter((row) => `${row.date} ${row.runtimeStatus} ${row.trainerStatus}`.toLowerCase().includes(query));
+  }, [data, search]);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">No data found for this course.</p>
-        <button onClick={() => navigate('/attendance')} className="mt-4 text-blue-600 hover:underline">
-          Go back to Overview
-        </button>
-      </div>
-    );
-  }
-
-  const { summary = {}, occurrences = [], courseTitle } = data;
-
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-
-  // Total macro sessions counts occurrences up to today
-  const totalBaseOccurrencesCount = occurrences.filter((occ) => {
-    const occDate = new Date(occ.date || occ.occurrenceDate || occ.startsAt);
-    return occDate <= endOfToday;
-  }).length;
-
-  const totalSessions = summary.totalSessions ?? totalBaseOccurrencesCount;
-  const attendedCount = summary.attendedCount ?? (summary.presentCount ?? 0) + (summary.lateCount ?? 0);
-
-  // Filtered list for the table
-  const filteredOccurrences = occurrences.filter((occ) => {
-    const occDate = new Date(occ.date || occ.occurrenceDate || occ.startsAt);
-    if (occDate > endOfToday) return false;
-
-    // Search query matching title
-    const query = searchQuery.trim().toLowerCase();
-    if (query) {
-      const title = occ.sessionTitle || occ.courseTitle || 'Class Session';
-      if (!title.toLowerCase().includes(query)) return false;
-    }
-
-    // Status matching
-    if (statusFilter !== 'all') {
-      const status = (occ.status || 'scheduled').toLowerCase();
-      if (status !== statusFilter) return false;
-    }
-
-    return true;
-  });
-
-  const paginatedOccurrences = filteredOccurrences.slice((currentPage - 1) * 10, currentPage * 10);
+  if (loading) return <LoadingSpinner label="Loading course attendance..." />;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center space-x-4">
-        <button 
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
           onClick={() => navigate('/attendance')}
-          className="p-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
+          aria-label="Back to attendance"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">{courseTitle || 'Course Attendance'}</h2>
-          <p className="text-sm text-gray-500 mt-1">{"Attendance Overview -> Course"}</p>
+          <h2 className="text-2xl font-bold text-slate-900">{value(data?.courseTitle, data?.courseName, data?.title, 'Course Attendance')}</h2>
+          <p className="mt-1 text-sm text-slate-500">Course Dates</p>
         </div>
       </div>
 
-      {/* Macro Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-            <Calendar size={24} />
-          </div>
+      {error ? <ErrorBanner message={error} /> : null}
+
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm text-gray-500 font-medium">Total Sessions</p>
-            <p className="text-2xl font-bold text-gray-900">{totalSessions}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Trainer</p>
+            <h3 className="mt-1 text-lg font-black text-slate-900">{value(data?.trainerName, data?.trainer?.fullName, data?.trainer?.name, 'Unassigned')}</h3>
           </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
-            <Users size={24} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Total Attended</p>
-            <p className="text-2xl font-bold text-gray-900">{attendedCount}</p>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-            <UserCheck size={24} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Present</p>
-            <p className="text-2xl font-bold text-gray-900">{summary.presentCount ?? 0}</p>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
-            <Clock size={24} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Late</p>
-            <p className="text-2xl font-bold text-gray-900">{summary.lateCount ?? 0}</p>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center space-x-4">
-          <div className="p-3 bg-rose-50 rounded-lg text-rose-600">
-            <UserX size={24} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Absent</p>
-            <p className="text-2xl font-bold text-gray-900">{summary.absentCount ?? 0}</p>
-          </div>
+          <StatusBadge status={value(data?.status, data?.runtimeStatus, summary.status, 'upcoming')} />
         </div>
       </div>
 
-      {/* Occurrences Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="font-semibold text-gray-800">Session Occurrences</h3>
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500"
-            >
-              <option value="all">All Statuses</option>
-              <option value="completed">Completed</option>
-              <option value="live">Live</option>
-              <option value="scheduled">Scheduled</option>
-            </select>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search session..."
-                className="h-10 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 sm:w-64"
-              />
-            </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+        <SummaryCard label="Total students" value={count(summary.totalStudents, data?.totalStudents)} />
+        <SummaryCard label="Total sessions" value={count(summary.totalSessions, data?.totalSessions)} />
+        <SummaryCard label="Completed" value={count(summary.completedSessions, data?.completedSessions)} />
+        <SummaryCard label="Upcoming" value={count(summary.upcomingSessions, data?.upcomingSessions)} />
+        <SummaryCard label="Attendance %" value={`${count(summary.attendancePercentage, summary.averageAttendancePercentage, data?.attendancePercentage)}%`} />
+        <SummaryCard label="Present" value={count(summary.presentCount)} />
+        <SummaryCard label="Pending" value={count(summary.pendingCount)} />
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Date / Session Occurrences</h3>
+            <p className="text-sm text-slate-500">Select a day to inspect student and trainer attendance separately.</p>
+          </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search dates or statuses..."
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            />
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-600">
-            <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200">
+          <table className="w-full min-w-[1180px] text-left text-sm">
+            <thead className="border-b border-slate-200 bg-white text-xs font-bold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-6 py-4">Session Title</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Present</th>
-                <th className="px-6 py-4">Late</th>
-                <th className="px-6 py-4">Absent</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Time</th>
+                <th className="px-4 py-3">Runtime Status</th>
+                <th className="px-4 py-3 text-center">Total Students</th>
+                <th className="px-4 py-3 text-center">Present</th>
+                <th className="px-4 py-3 text-center">Late</th>
+                <th className="px-4 py-3 text-center">Absent</th>
+                <th className="px-4 py-3 text-center">Pending</th>
+                <th className="px-4 py-3 text-center">Attendance %</th>
+                <th className="px-4 py-3">Trainer Status</th>
+                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {paginatedOccurrences.length === 0 ? (
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {occurrences.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                    No sessions found for this course.
-                  </td>
+                  <td colSpan="11" className="px-6 py-10 text-center text-sm font-medium text-slate-500">No date/session occurrences found.</td>
                 </tr>
               ) : (
-                paginatedOccurrences.map((occ) => (
-                  <tr 
-                    key={`${occ.sessionId}-${occ.date || occ.occurrenceDate || occ.id}`}
-                    onClick={() => navigate(`/sessions/${occ.sessionId}/attendance`)}
-                    className="hover:bg-blue-50 cursor-pointer transition-colors duration-150 group"
-                  >
-                    <td className="px-6 py-4 font-medium text-gray-900 group-hover:text-blue-600">
-                      {occ.sessionTitle || occ.courseTitle || 'Class Session'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2 text-gray-500">
-                        <Calendar size={14} />
-                        <span>{occ.date ? new Date(occ.date).toLocaleDateString() : 'TBD'}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">{getStatusBadge(occ.status)}</td>
-                    <td className="px-6 py-4 font-medium text-emerald-600">{occ.presentCount ?? 0}</td>
-                    <td className="px-6 py-4 font-medium text-amber-600">{occ.lateCount ?? 0}</td>
-                    <td className="px-6 py-4 font-medium text-rose-600">{occ.absentCount ?? 0}</td>
-                  </tr>
-                ))
+                occurrences.map((row, index) => {
+                  const dateKey = formatDateKey(row.date);
+                  return (
+                    <tr key={value(row.id, row.occurrenceId, `${dateKey}-${index}`)} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-bold text-slate-900"><span className="inline-flex items-center gap-2"><Calendar className="h-4 w-4 text-slate-400" />{formatDate(row.date)}</span></td>
+                      <td className="px-4 py-3">{formatTime(value(row.startTime, row.startsAt), value(row.endTime, row.endsAt))}</td>
+                      <td className="px-4 py-3"><StatusBadge status={row.runtimeStatus} /></td>
+                      <td className="px-4 py-3 text-center font-semibold">{row.totalStudents}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-emerald-600">{row.presentCount}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-amber-600">{row.lateCount}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-rose-600">{row.absentCount}</td>
+                      <td className="px-4 py-3 text-center font-semibold text-slate-500">{row.pendingCount}</td>
+                      <td className="px-4 py-3 text-center font-black text-slate-900">{row.attendancePercentage}%</td>
+                      <td className="px-4 py-3"><StatusBadge status={row.trainerStatus} /></td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          disabled={!dateKey}
+                          onClick={() => navigate(`/courses/${encodeURIComponent(courseKey)}/attendance/${encodeURIComponent(dateKey)}`)}
+                          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          View Day
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-        <PaginationControls
-          currentPage={currentPage}
-          totalItems={filteredOccurrences.length}
-          rowsPerPage={10}
-          onPageChange={setCurrentPage}
-        />
       </div>
     </div>
   );
