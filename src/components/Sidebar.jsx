@@ -16,7 +16,8 @@ import {
   ChevronRight,
   ChevronDown,
   Clock,
-  MailPlus
+  MailPlus,
+  Trash2
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +33,7 @@ const navItems = [
   { name: 'Payments & Ledger', path: '/payments', icon: Receipt },
   { name: 'Trainer Payouts', path: '/trainer-payouts', icon: HandCoins },
   { name: 'Pending Reviews', path: '/pending-sessions', icon: Clock },
+  { name: 'Delete Requests', path: '/delete-requests', icon: Trash2 },
   {
     name: 'Offers & Emails',
     path: '/offer-campaigns',
