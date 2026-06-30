@@ -16,7 +16,8 @@ import {
   ChevronRight,
   ChevronDown,
   Clock,
-  MailPlus
+  MailPlus,
+  Tag
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -42,6 +43,7 @@ const navItems = [
       { name: 'Send History', path: '/offer-campaigns/history' },
     ],
   },
+  { name: 'Offers & Promotions', path: '/offers', icon: Tag },
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 

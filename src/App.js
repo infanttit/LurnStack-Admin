@@ -26,6 +26,7 @@ import StudentAttendanceAudit from './pages/attendance/StudentAttendanceAudit';
 import TrainerSessions from './pages/trainers/TrainerSessions';
 import PayoutRequestPage from './pages/trainerPayments/PayoutRequestPage';
 import SessionEarningsPage from './pages/trainerPayments/SessionEarningsPage';
+import OffersDashboardPage from './pages/OffersDashboardPage';
 
 function App() {
   return (
@@ -58,6 +59,7 @@ function App() {
           <Route path="offer-campaigns" element={<OfferCampaigns view="campaigns" />} />
           <Route path="offer-campaigns/create" element={<OfferCampaigns view="builder" />} />
           <Route path="offer-campaigns/history" element={<OfferCampaigns view="history" />} />
+          <Route path="offers" element={<OffersDashboardPage />} />
 
           <Route path="courses" element={<Courses />} />
           <Route path="settings" element={<div className="p-8">Settings Module Placeholder</div>} />
