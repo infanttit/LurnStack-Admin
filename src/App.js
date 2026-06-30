@@ -12,6 +12,7 @@ import TrainerPayouts from './pages/trainerPayouts';
 import Login from './pages/auth/Login';
 import RequireAuth from './components/RequireAuth'; 
 import PendingSessions from './pages/pending-sessions/PendingSessions';
+import DeleteRequests from './pages/DeleteRequests';
 import OfferCampaigns from './pages/offerCampaigns/OfferCampaigns';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -26,6 +27,7 @@ import StudentAttendanceAudit from './pages/attendance/StudentAttendanceAudit';
 import TrainerSessions from './pages/trainers/TrainerSessions';
 import PayoutRequestPage from './pages/trainerPayments/PayoutRequestPage';
 import SessionEarningsPage from './pages/trainerPayments/SessionEarningsPage';
+import OffersDashboardPage from './pages/OffersDashboardPage';
 
 function App() {
   return (
@@ -55,9 +57,11 @@ function App() {
           <Route path="payments" element={<Payments />} />
           <Route path="trainer-payouts" element={<TrainerPayouts />} />
           <Route path="pending-sessions" element={<PendingSessions />} />
+          <Route path="delete-requests" element={<DeleteRequests />} />
           <Route path="offer-campaigns" element={<OfferCampaigns view="campaigns" />} />
           <Route path="offer-campaigns/create" element={<OfferCampaigns view="builder" />} />
           <Route path="offer-campaigns/history" element={<OfferCampaigns view="history" />} />
+          <Route path="offers" element={<OffersDashboardPage />} />
 
           <Route path="courses" element={<Courses />} />
           <Route path="settings" element={<div className="p-8">Settings Module Placeholder</div>} />

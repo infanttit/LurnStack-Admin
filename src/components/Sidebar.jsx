@@ -1,22 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Video, 
-  Users, 
-  Settings, 
-  BookOpen, 
-  LogOut, 
-  UserCheck, 
-  X, 
-  Receipt, 
+import {
+  LayoutDashboard,
+  Video,
+  Users,
+  Settings,
+  BookOpen,
+  LogOut,
+  UserCheck,
+  X,
+  Receipt,
   HandCoins,
-  ClipboardCheck, 
-  ChevronLeft, 
+  ClipboardCheck,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   Clock,
-  MailPlus
+  MailPlus,
+  Trash2,
+  Tag
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +34,7 @@ const navItems = [
   { name: 'Payments & Ledger', path: '/payments', icon: Receipt },
   { name: 'Trainer Payouts', path: '/trainer-payouts', icon: HandCoins },
   { name: 'Pending Reviews', path: '/pending-sessions', icon: Clock },
+  { name: 'Delete Requests', path: '/delete-requests', icon: Trash2 },
   {
     name: 'Offers & Emails',
     path: '/offer-campaigns',
@@ -42,6 +45,7 @@ const navItems = [
       { name: 'Send History', path: '/offer-campaigns/history' },
     ],
   },
+  { name: 'Offers & Promotions', path: '/offers', icon: Tag },
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
@@ -93,9 +97,9 @@ const SidebarNav = ({ isCollapsed, onNavigate, onLogout }) => {
       const isSectionActive = item.name === 'Attendance'
         ? isAttendanceRoute
         : (!isAttendanceRoute && (
-            location.pathname === item.path ||
-            (item.path !== '/' && location.pathname.startsWith(`${item.path}/`))
-          ));
+          location.pathname === item.path ||
+          (item.path !== '/' && location.pathname.startsWith(`${item.path}/`))
+        ));
 
       if (hasChildren && isSectionActive) {
         acc[item.name] = true;
@@ -115,104 +119,98 @@ const SidebarNav = ({ isCollapsed, onNavigate, onLogout }) => {
 
   return (
     <>
-    <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto no-scrollbar pr-1">
-      {navItems.map((item) => {
-        const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-        const isAttendanceRoute = location.pathname.includes('/attendance');
-        const isSectionActive = item.name === 'Attendance'
-          ? isAttendanceRoute
-          : (!isAttendanceRoute && (
+      <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto no-scrollbar pr-1">
+        {navItems.map((item) => {
+          const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+          const isAttendanceRoute = location.pathname.includes('/attendance');
+          const isSectionActive = item.name === 'Attendance'
+            ? isAttendanceRoute
+            : (!isAttendanceRoute && (
               location.pathname === item.path ||
               (item.path !== '/' && location.pathname.startsWith(`${item.path}/`))
             ));
-        const isSectionOpen = !!openSections[item.name];
+          const isSectionOpen = !!openSections[item.name];
 
-        return (
-          <div key={item.name}>
-            {hasChildren ? (
-              <button
-                type="button"
-                onClick={() => toggleSection(item.name)}
-                title={isCollapsed ? item.name : undefined}
-                className={`flex w-full items-center rounded-lg transition-all duration-200 ${
-                  isCollapsed ? 'justify-center p-3' : 'space-x-3 px-4 py-3'
-                } ${
-                  isSectionActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                }`}
-              >
-                <item.icon className="w-5 h-5 shrink-0" />
-                {!isCollapsed && (
-                  <>
-                    <span className="font-medium animate-fade-in whitespace-nowrap text-sm flex-1 text-left">{item.name}</span>
-                    {isSectionOpen ? (
-                      <ChevronDown className={`h-4 w-4 ${isSectionActive ? 'text-blue-100' : 'text-gray-500'}`} />
-                    ) : (
-                      <ChevronRight className={`h-4 w-4 ${isSectionActive ? 'text-blue-100' : 'text-gray-500'}`} />
-                    )}
-                  </>
-                )}
-              </button>
-            ) : (
-              <NavLink
-                to={item.path}
-                onClick={onNavigate}
-                title={isCollapsed ? item.name : undefined}
-                className={({ isActive }) => {
-                  const isAttendanceRoute = location.pathname.includes('/attendance');
-                  const itemIsActive = item.name === 'Attendance' 
-                    ? isAttendanceRoute 
-                    : (isActive && !isAttendanceRoute);
+          return (
+            <div key={item.name}>
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(item.name)}
+                  title={isCollapsed ? item.name : undefined}
+                  className={`flex w-full items-center rounded-lg transition-all duration-200 ${isCollapsed ? 'justify-center p-3' : 'space-x-3 px-4 py-3'
+                    } ${isSectionActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    }`}
+                >
+                  <item.icon className="w-5 h-5 shrink-0" />
+                  {!isCollapsed && (
+                    <>
+                      <span className="font-medium animate-fade-in whitespace-nowrap text-sm flex-1 text-left">{item.name}</span>
+                      {isSectionOpen ? (
+                        <ChevronDown className={`h-4 w-4 ${isSectionActive ? 'text-blue-100' : 'text-gray-500'}`} />
+                      ) : (
+                        <ChevronRight className={`h-4 w-4 ${isSectionActive ? 'text-blue-100' : 'text-gray-500'}`} />
+                      )}
+                    </>
+                  )}
+                </button>
+              ) : (
+                <NavLink
+                  to={item.path}
+                  onClick={onNavigate}
+                  title={isCollapsed ? item.name : undefined}
+                  className={({ isActive }) => {
+                    const isAttendanceRoute = location.pathname.includes('/attendance');
+                    const itemIsActive = item.name === 'Attendance'
+                      ? isAttendanceRoute
+                      : (isActive && !isAttendanceRoute);
 
-                  return `flex items-center rounded-lg transition-all duration-200 ${
-                    isCollapsed ? 'justify-center p-3' : 'space-x-3 px-4 py-3'
-                  } ${
-                    itemIsActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                  }`;
-                }}
-              >
-                <item.icon className="w-5 h-5 shrink-0" />
-                {!isCollapsed && <span className="font-medium animate-fade-in whitespace-nowrap text-sm">{item.name}</span>}
-              </NavLink>
-            )}
+                    return `flex items-center rounded-lg transition-all duration-200 ${isCollapsed ? 'justify-center p-3' : 'space-x-3 px-4 py-3'
+                      } ${itemIsActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`;
+                  }}
+                >
+                  <item.icon className="w-5 h-5 shrink-0" />
+                  {!isCollapsed && <span className="font-medium animate-fade-in whitespace-nowrap text-sm">{item.name}</span>}
+                </NavLink>
+              )}
 
-            {hasChildren && !isCollapsed && isSectionOpen ? (
-              <div className="mt-2 ml-5 space-y-1 border-l border-gray-700 pl-3">
-                {item.children.map((child) => (
-                  <NavLink
-                    key={child.path}
-                    to={child.path}
-                    end={child.path === item.path}
-                    onClick={onNavigate}
-                    className={({ isActive }) =>
-                      `block rounded-md px-3 py-2 text-sm transition-colors ${
-                        isActive
+              {hasChildren && !isCollapsed && isSectionOpen ? (
+                <div className="mt-2 ml-5 space-y-1 border-l border-gray-700 pl-3">
+                  {item.children.map((child) => (
+                    <NavLink
+                      key={child.path}
+                      to={child.path}
+                      end={child.path === item.path}
+                      onClick={onNavigate}
+                      className={({ isActive }) =>
+                        `block rounded-md px-3 py-2 text-sm transition-colors ${isActive
                           ? 'bg-gray-800 text-white'
                           : 'text-gray-400 hover:bg-gray-800/70 hover:text-white'
-                      }`
-                    }
-                  >
-                    {child.name}
-                  </NavLink>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
-    </nav>
+                        }`
+                      }
+                    >
+                      {child.name}
+                    </NavLink>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </nav>
 
-    <div className="p-4 border-t border-gray-800">
-      <button
-        onClick={onLogout}
-        title={isCollapsed ? "Logout" : undefined}
-        className={`flex items-center w-full text-left text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200 ${
-          isCollapsed ? 'justify-center p-3' : 'space-x-3 px-4 py-3'
-        }`}
-      >
-        <LogOut className="w-5 h-5 shrink-0" />
-        {!isCollapsed && <span className="font-medium animate-fade-in whitespace-nowrap text-sm">Logout</span>}
-      </button>
-    </div>
+      <div className="p-4 border-t border-gray-800">
+        <button
+          onClick={onLogout}
+          title={isCollapsed ? "Logout" : undefined}
+          className={`flex items-center w-full text-left text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200 ${isCollapsed ? 'justify-center p-3' : 'space-x-3 px-4 py-3'
+            }`}
+        >
+          <LogOut className="w-5 h-5 shrink-0" />
+          {!isCollapsed && <span className="font-medium animate-fade-in whitespace-nowrap text-sm">Logout</span>}
+        </button>
+      </div>
     </>
   );
 };
@@ -242,9 +240,8 @@ const Sidebar = ({ mobileOpen = false, onClose, isCollapsed = false, onToggleCol
           onClick={onClose}
         />
         <aside
-          className={`absolute left-0 top-0 h-full w-72 max-w-[85%] bg-gray-900 text-white flex flex-col transform transition-transform ${
-            mobileOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`absolute left-0 top-0 h-full w-72 max-w-[85%] bg-gray-900 text-white flex flex-col transform transition-transform ${mobileOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
           role="dialog"
           aria-modal="true"
         >
