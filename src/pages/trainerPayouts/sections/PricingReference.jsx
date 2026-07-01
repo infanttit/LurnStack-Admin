@@ -1,11 +1,43 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight, Search, Edit2, Check, X } from 'lucide-react';
 import { StatusBadge } from '../components/Shared';
 import { formatCurrency, formatDate } from '../utils';
+import { updateSessionPricing } from '../../../api/billing';
+import { toast } from 'react-toastify';
 
 const PricingReference = ({ pricing }) => {
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ price: 0, trainerShare: 50 });
+  const [isSaving, setIsSaving] = useState(false);
+
   const resetFilters = () => {
     pricing.setFilters({ query: '', trainer: 'all', priceType: 'all', status: 'all', from: '', to: '' });
+  };
+
+  const handleEdit = (row) => {
+    setEditingId(row.id);
+    setEditForm({
+      price: row.price || 0,
+      trainerShare: row.trainerShare || 50,
+    });
+  };
+
+  const handleSave = async (sessionId) => {
+    try {
+      setIsSaving(true);
+      await updateSessionPricing(sessionId, {
+        priceInPaise: Number(editForm.price),
+        trainerSharePercentage: Number(editForm.trainerShare),
+        platformCommissionPercentage: 100 - Number(editForm.trainerShare)
+      });
+      toast.success('Session pricing updated');
+      setEditingId(null);
+      pricing.refresh();
+    } catch (err) {
+      toast.error('Failed to update session pricing');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -16,9 +48,6 @@ const PricingReference = ({ pricing }) => {
           <p className="mt-1 text-sm text-slate-500">
             Read-only pricing data from the existing Pending Session Reviews / Set Pricing & Publish flow.
           </p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
-          Pricing changes are managed in Pending Reviews, not here.
         </div>
       </div>
 
@@ -65,37 +94,82 @@ const PricingReference = ({ pricing }) => {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[1020px] w-full text-left text-sm">
+        <table className="min-w-[1100px] w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Session</th>
               <th className="px-4 py-3">Trainer</th>
-              <th className="px-4 py-3">Configured Price</th>
-              <th className="px-4 py-3">Trainer Share</th>
-              <th className="px-4 py-3">Platform Share</th>
+              <th className="px-4 py-3">Price (₹)</th>
+              <th className="px-4 py-3">Trainer Share (%)</th>
+              <th className="px-4 py-3">Platform Share (%)</th>
               <th className="px-4 py-3">Paid Students</th>
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Pricing Status</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {pricing.loading ? (
-              <tr><td colSpan="8" className="px-4 py-10 text-center text-sm font-medium text-slate-500">Loading admin session pricing...</td></tr>
+              <tr><td colSpan="9" className="px-4 py-10 text-center text-sm font-medium text-slate-500">Loading admin session pricing...</td></tr>
             ) : pricing.filteredRows.length === 0 ? (
-              <tr><td colSpan="8" className="px-4 py-10 text-center text-sm font-medium text-slate-500">No session pricing records match the selected filters.</td></tr>
+              <tr><td colSpan="9" className="px-4 py-10 text-center text-sm font-medium text-slate-500">No session pricing records match the selected filters.</td></tr>
             ) : (
               pricing.rows.map((row, index) => (
                 <tr key={`${row.id || 'pricing'}-${pricing.startIndex + index}`} className={`hover:bg-slate-50 ${!row.hasPricing ? 'bg-amber-50/30' : ''}`}>
                   <td className="px-4 py-3 font-semibold text-slate-900">{row.title}</td>
                   <td className="px-4 py-3 text-slate-600">{row.trainerName}</td>
-                  <td className="px-4 py-3 font-semibold">
-                    {row.hasPricing ? (row.isFreeSession ? <span className="text-emerald-700">Free</span> : formatCurrency(row.price)) : <span className="text-amber-700">Not set</span>}
-                  </td>
-                  <td className="px-4 py-3">{row.trainerShare}%</td>
-                  <td className="px-4 py-3">{row.platformShare}%</td>
+                  
+                  {editingId === row.id ? (
+                    <>
+                      <td className="px-4 py-3">
+                        <input 
+                          type="number" 
+                          value={editForm.price / 100} 
+                          onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) * 100 })}
+                          className="w-24 rounded border p-1 text-sm outline-none focus:border-blue-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input 
+                          type="number" 
+                          min="0"
+                          max="100"
+                          value={editForm.trainerShare} 
+                          onChange={e => setEditForm({ ...editForm, trainerShare: Number(e.target.value) })}
+                          className="w-16 rounded border p-1 text-sm outline-none focus:border-blue-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3">{100 - editForm.trainerShare}%</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-3 font-semibold">
+                        {row.hasPricing ? (row.isFreeSession ? <span className="text-emerald-700">Free</span> : formatCurrency(row.price)) : <span className="text-amber-700">Not set</span>}
+                      </td>
+                      <td className="px-4 py-3">{row.trainerShare}%</td>
+                      <td className="px-4 py-3">{row.platformShare}%</td>
+                    </>
+                  )}
+                  
                   <td className="px-4 py-3">{row.paidStudents}</td>
                   <td className="px-4 py-3 text-slate-600">{formatDate(row.dateValue)}</td>
                   <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
+                  <td className="px-4 py-3">
+                    {editingId === row.id ? (
+                      <div className="flex gap-2">
+                        <button onClick={() => handleSave(row.id)} disabled={isSaving} className="text-emerald-600 hover:text-emerald-800">
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setEditingId(null)} disabled={isSaving} className="text-rose-600 hover:text-rose-800">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             )}

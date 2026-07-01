@@ -8,8 +8,10 @@ const getAmounts = (item, trainerStat) => {
   const trainerEarning = Number(item.trainerEarning ?? Math.round((gross * item.trainerShare) / 100));
   const platformEarning = Number(item.platformEarning ?? gross - trainerEarning);
   const finalPayable = Number(item.finalPayable ?? Math.max(0, trainerEarning - item.refundAdjustment));
-  const trainerPaid = trainerStat?.paidAmount || 0;
-  const balancePayable = Math.max(0, (trainerStat?.totalEarned || finalPayable) - trainerPaid);
+  
+  const trainerPaid = item.earningRows?.filter(r => r.status === 'paid').reduce((sum, r) => sum + Number(r.trainerEarningPaise ?? r.finalPayablePaise ?? r.trainerEarning ?? 0), 0) || 0;
+  const balancePayable = Math.max(0, finalPayable - trainerPaid);
+  
   return { gross, trainerEarning, platformEarning, finalPayable, trainerPaid, balancePayable };
 };
 
@@ -128,7 +130,7 @@ const EarningsDashboard = ({ filters, setFilters, trainerOptions, sessions, rows
               <th className="px-4 py-3 whitespace-nowrap">Refund Adj.</th>
               <th className="px-4 py-3 whitespace-nowrap">Total Paid</th>
               <th className="px-4 py-3 whitespace-nowrap">Balance Payable</th>
-              <th className="px-4 py-3 whitespace-nowrap">Status</th>
+              <th className="px-4 py-3 whitespace-nowrap">Payout Status</th>
               <th className="px-4 py-3 text-right whitespace-nowrap">Details</th>
             </tr>
           </thead>
@@ -152,7 +154,9 @@ const EarningsDashboard = ({ filters, setFilters, trainerOptions, sessions, rows
               
               let displayStatus = item.status;
               if (!['requested', 'approved', 'processing', 'rejected', 'adjusted'].includes(displayStatus)) {
-                if (trainerPaid > 0) {
+                if (finalPayable === 0) {
+                  displayStatus = 'verified';
+                } else if (trainerPaid > 0) {
                   if (balancePayable <= 0) {
                     displayStatus = 'paid';
                   } else {
@@ -252,7 +256,7 @@ const SessionEarningDetails = ({ amounts, session, onClose }) => {
                     <tr>
                       <th className="px-4 py-3">Record</th>
                       <th className="px-4 py-3">Amount</th>
-                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Payout Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">

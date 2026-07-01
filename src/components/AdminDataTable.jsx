@@ -19,7 +19,7 @@ const formatJoinedDate = (value) => {
 
 const getRowId = (row, index) => String(row?.id ?? row?._id ?? row?.email ?? index);
 
-const AdminDataTable = ({ title, description, rows = [], loading, error, renderActions, enablePdfExport = false, exportFilename }) => {
+const AdminDataTable = ({ title, description, rows = [], loading, error, renderActions, enablePdfExport = false, exportFilename, onRowProfileClick }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRowIds, setSelectedRowIds] = useState([]);
@@ -170,7 +170,6 @@ const AdminDataTable = ({ title, description, rows = [], loading, error, renderA
                 className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 outline-none transition-colors focus:ring-2 focus:ring-blue-500"
               >
                 <option value="page">Current page</option>
-                <option value="selected">Selected records</option>
                 <option value="last50">Last 50 records</option>
                 <option value="last100">Last 100 records</option>
                 <option value="all">All records</option>
@@ -214,17 +213,6 @@ const AdminDataTable = ({ title, description, rows = [], loading, error, renderA
             <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {enablePdfExport ? (
-                    <th className="px-4 py-3 font-medium text-gray-500 w-12">
-                      <input
-                        type="checkbox"
-                        checked={allPageRowsSelected}
-                        onChange={togglePageSelection}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        aria-label="Select visible rows"
-                      />
-                    </th>
-                  ) : null}
                   <th className="px-4 py-3 font-medium text-gray-500 w-12">No.</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Full Name</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Email</th>
@@ -239,19 +227,31 @@ const AdminDataTable = ({ title, description, rows = [], loading, error, renderA
                   const rowId = getRowId(row, rowIndex);
                   return (
                   <tr key={rowId} className="hover:bg-slate-50 transition-colors">
-                    {enablePdfExport ? (
-                      <td className="px-4 py-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedIdSet.has(rowId)}
-                          onChange={() => toggleRowSelection(row, rowIndex)}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          aria-label={`Select ${row.fullName || 'record'}`}
-                        />
-                      </td>
-                    ) : null}
                     <td className="px-4 py-4 font-medium text-slate-900">{startIndex + index + 1}</td>
-                    <td className="px-4 py-4 text-slate-700">{row.fullName || '-'}</td>
+                    <td className="px-4 py-4 text-slate-700">
+                      <div className="flex items-center gap-3">
+                        {onRowProfileClick || row.profilePhotoUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => onRowProfileClick && onRowProfileClick(row)}
+                            disabled={!onRowProfileClick}
+                            className={`w-10 h-10 rounded-full flex-shrink-0 bg-blue-50 text-blue-600 flex items-center justify-center overflow-hidden border border-slate-200 ${onRowProfileClick ? 'cursor-pointer transition-transform hover:scale-105 hover:shadow-md hover:border-blue-300' : 'cursor-default'}`}
+                            title={onRowProfileClick ? "View Profile Details" : ""}
+                          >
+                            {row.profilePhotoUrl ? (
+                              <img src={row.profilePhotoUrl} alt={row.fullName} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-sm font-bold uppercase">
+                                {(row.fullName || 'U').charAt(0)}
+                              </span>
+                            )}
+                          </button>
+                        ) : null}
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-900">{row.fullName || '-'}</span>
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-4 py-4 text-slate-700">{row.email || '-'}</td>
                     <td className="px-4 py-4 text-slate-700">{row.phoneNumber || '-'}</td>
                     <td className="px-4 py-4 text-slate-700">{formatJoinedDate(row.createdAt)}</td>

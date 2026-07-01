@@ -13,6 +13,8 @@ const Students = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmationText, setConfirmationText] = useState('');
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState(null);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -37,18 +39,23 @@ const Students = () => {
     loadData();
   }, []);
 
-  const handleDelete = async (studentId) => {
-    if (!window.confirm('Are you sure you want to delete this student? This action cannot be undone.')) {
-      return;
-    }
-    setActionInProgress((prev) => ({ ...prev, [studentId]: true }));
+  const handleDeleteClick = (studentId) => {
+    setStudentToDelete(studentId);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!studentToDelete) return;
+    setIsDeleteModalOpen(false);
+    setActionInProgress((prev) => ({ ...prev, [studentToDelete]: true }));
     try {
-      await deleteStudent(studentId);
-      setStudents((prev) => prev.filter((s) => s.id !== studentId));
+      await deleteStudent(studentToDelete);
+      setStudents((prev) => prev.filter((s) => s.id !== studentToDelete));
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to delete student'));
     } finally {
-      setActionInProgress((prev) => ({ ...prev, [studentId]: false }));
+      setActionInProgress((prev) => ({ ...prev, [studentToDelete]: false }));
+      setStudentToDelete(null);
     }
   };
 
@@ -79,7 +86,7 @@ const Students = () => {
   const renderActions = (row) => (
     <div className="flex items-center justify-center gap-2">
       <button
-        onClick={() => handleDelete(row.id)}
+        onClick={() => handleDeleteClick(row.id)}
         disabled={actionInProgress[row.id]}
         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
         title="Delete student"
@@ -202,6 +209,38 @@ const Students = () => {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal for Single Student */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300 p-6">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+              <Trash2 className="w-6 h-6 text-red-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">Delete Student</h3>
+            <p className="text-slate-500 text-center text-sm mb-6">
+              Are you sure you want to delete this student? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setStudentToDelete(null);
+                }}
+                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
