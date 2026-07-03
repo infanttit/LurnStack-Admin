@@ -79,7 +79,7 @@ export const TemplateStep = ({ form, selectedTemplate, onChange, onHeroImageChan
 
     <div className="grid gap-4 md:grid-cols-2">
       <TextField label="Button Text" name="buttonText" value={form.buttonText} onChange={onChange} />
-      <ReadOnlyField label="Generated Login Redirect Link" value={form.buttonLink} />
+      <TextField label="Generated Login Redirect Link" name="buttonLink" value={form.buttonLink} onChange={onChange} />
     </div>
 
     <div className="flex justify-end pt-1">

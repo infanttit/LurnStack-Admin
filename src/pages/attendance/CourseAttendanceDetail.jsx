@@ -98,7 +98,8 @@ const CourseAttendanceDetail = () => {
     };
   }, [courseKey]);
 
-  const summary = data?.summary || data || {};
+  const courseData = data?.course || data || {};
+  const summary = courseData?.summary || courseData || {};
   const occurrences = useMemo(() => {
     const query = search.trim().toLowerCase();
     const rows = pickOccurrences(data || {}).map((row) => ({
@@ -131,7 +132,7 @@ const CourseAttendanceDetail = () => {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">{value(data?.courseTitle, data?.courseName, data?.title, 'Course Attendance')}</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{value(courseData?.courseTitle, courseData?.courseName, courseData?.title, 'Course Attendance')}</h2>
           <p className="mt-1 text-sm text-slate-500">Course Dates</p>
         </div>
       </div>
@@ -142,20 +143,20 @@ const CourseAttendanceDetail = () => {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Trainer</p>
-            <h3 className="mt-1 text-lg font-black text-slate-900">{value(data?.trainerName, data?.trainer?.fullName, data?.trainer?.name, 'Unassigned')}</h3>
+            <h3 className="mt-1 text-lg font-black text-slate-900">{value(courseData?.trainerName, courseData?.trainer?.fullName, courseData?.trainer?.name, 'Unassigned')}</h3>
           </div>
-          <StatusBadge status={value(data?.status, data?.runtimeStatus, summary.status, 'upcoming')} />
+          <StatusBadge status={value(courseData?.status, courseData?.runtimeStatus, summary.status, 'upcoming')} />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-        <SummaryCard label="Total students" value={count(summary.totalStudents, data?.totalStudents)} />
-        <SummaryCard label="Total sessions" value={count(summary.totalSessions, data?.totalSessions)} />
-        <SummaryCard label="Completed" value={count(summary.completedSessions, data?.completedSessions)} />
-        <SummaryCard label="Upcoming" value={count(summary.upcomingSessions, data?.upcomingSessions)} />
-        <SummaryCard label="Attendance %" value={`${count(summary.attendancePercentage, summary.averageAttendancePercentage, data?.attendancePercentage)}%`} />
-        <SummaryCard label="Present" value={count(summary.presentCount)} />
-        <SummaryCard label="Pending" value={count(summary.pendingCount)} />
+        <SummaryCard label="Total students" value={count(summary.totalStudents, courseData?.totalStudents)} />
+        <SummaryCard label="Total sessions" value={count(summary.totalSessions, courseData?.totalSessions)} />
+        <SummaryCard label="Completed" value={count(summary.completedSessions, courseData?.completedSessions)} />
+        <SummaryCard label="Upcoming" value={count(summary.upcomingSessions, courseData?.upcomingSessions)} />
+        <SummaryCard label="Attendance %" value={`${count(summary.attendancePercentage, summary.averageAttendancePercentage, courseData?.attendancePercentage)}%`} />
+        <SummaryCard label="Present" value={count(summary.presentCount, courseData?.presentCount)} />
+        <SummaryCard label="Pending" value={count(summary.pendingCount, courseData?.pendingCount)} />
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

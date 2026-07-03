@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Bug, Search, User, Users } from 'lucide-react';
+import { BookOpen, Bug, Search, User, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchAdminStudents, fetchAdminTrainers } from '../../api/adminDashboard';
 import {
   getAllAttendanceRecords,
@@ -103,6 +103,86 @@ const MetricStrip = ({ items }) => (
     ))}
   </div>
 );
+
+const PaginationControls = ({ currentPage, totalItems, rowsPerPage, onPageChange }) => {
+  const totalPages = Math.ceil(totalItems / rowsPerPage) || 1;
+  const startEntry = totalItems === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const endEntry = Math.min(currentPage * rowsPerPage, totalItems);
+
+  const getPageItems = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+
+    const items = new Set([1, totalPages]);
+    for (let p = currentPage - 1; p <= currentPage + 1; p += 1) {
+      if (p > 1 && p < totalPages) items.add(p);
+    }
+    const sorted = Array.from(items).sort((a, b) => a - b);
+
+    const withGaps = [];
+    for (let i = 0; i < sorted.length; i += 1) {
+      const current = sorted[i];
+      const prev = sorted[i - 1];
+      if (i > 0 && current - prev > 1) withGaps.push('gap');
+      withGaps.push(current);
+    }
+    return withGaps;
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-6 py-4 sm:flex-row bg-slate-50/50">
+      <p className="text-xs font-semibold text-slate-500">
+        Showing <span className="font-bold text-slate-900">{totalItems ? startEntry : 0}</span> to{' '}
+        <span className="font-bold text-slate-900">{endEntry}</span> of{' '}
+        <span className="font-bold text-slate-900">{totalItems}</span> entries
+      </p>
+      
+      <div className="flex items-center justify-between sm:justify-end gap-2">
+        <button
+          type="button"
+          disabled={currentPage <= 1 || totalItems === 0}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="px-3 py-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition-colors text-xs font-bold text-slate-700 shadow-sm"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          <span>Previous</span>
+        </button>
+
+        <div className="flex items-center gap-1">
+          {getPageItems().map((item, idx) =>
+            item === 'gap' ? (
+              <span key={`gap-${idx}`} className="px-2 text-slate-400 text-xs">
+                …
+              </span>
+            ) : (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onPageChange(item)}
+                className={`min-w-[36px] px-3 py-1.5 border rounded-lg hover:bg-slate-50 transition-colors text-xs font-bold shadow-sm ${
+                  item === currentPage
+                    ? 'bg-blue-50 text-blue-700 border-blue-100'
+                    : 'bg-white border-slate-200 text-slate-700'
+                }`}
+              >
+                {item}
+              </button>
+            )
+          )}
+        </div>
+
+        <button
+          type="button"
+          disabled={currentPage >= totalPages || totalItems === 0}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="px-3 py-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 transition-colors text-xs font-bold text-slate-700 shadow-sm"
+        >
+          <span>Next</span>
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const normalizeCourse = (course) => ({
   ...course,
@@ -516,6 +596,8 @@ const RecordsTab = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let active = true;
@@ -536,10 +618,22 @@ const RecordsTab = () => {
   }, []);
 
   const filteredRecords = useMemo(() => {
+    let list = records;
+    if (statusFilter !== 'all') {
+      list = list.filter((record) => String(record.status || 'pending').toLowerCase() === statusFilter);
+    }
     const query = search.trim().toLowerCase();
-    if (!query) return records;
-    return records.filter((record) => JSON.stringify(record).toLowerCase().includes(query));
-  }, [records, search]);
+    if (!query) return list;
+    return list.filter((record) => JSON.stringify(record).toLowerCase().includes(query));
+  }, [records, search, statusFilter]);
+
+  const paginatedRecords = useMemo(() => {
+    return filteredRecords.slice((currentPage - 1) * 15, currentPage * 15);
+  }, [filteredRecords, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
 
   if (loading) return <LoadingSpinner label="Loading raw records..." />;
 
@@ -551,7 +645,20 @@ const RecordsTab = () => {
           <h3 className="text-lg font-bold text-slate-900">Raw Attendance Records</h3>
           <p className="text-sm text-slate-500">Filtering and debugging only. Course grouped flow is the main experience.</p>
         </div>
-        <SearchBox value={search} onChange={setSearch} placeholder="Search raw records..." />
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500"
+          >
+            <option value="all">All Statuses</option>
+            <option value="present">Present</option>
+            <option value="absent">Absent</option>
+            <option value="late">Late</option>
+            <option value="pending">Pending</option>
+          </select>
+          <SearchBox value={search} onChange={setSearch} placeholder="Search raw records..." />
+        </div>
       </div>
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
@@ -568,10 +675,10 @@ const RecordsTab = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredRecords.length === 0 ? (
+              {paginatedRecords.length === 0 ? (
                 <EmptyRow colSpan={7} message="No raw attendance records found." />
               ) : (
-                filteredRecords.map((record, index) => (
+                paginatedRecords.map((record, index) => (
                   <tr key={value(record.attendanceId, record.id, index)}>
                     <td className="px-4 py-3 font-semibold text-slate-900">{formatDate(value(record.date, record.occurrenceDate, record.startsAt))}</td>
                     <td className="px-4 py-3">{value(record.studentName, record.student?.name, record.student?.fullName, 'N/A')}</td>
@@ -586,6 +693,12 @@ const RecordsTab = () => {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          currentPage={currentPage}
+          totalItems={filteredRecords.length}
+          rowsPerPage={15}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );
