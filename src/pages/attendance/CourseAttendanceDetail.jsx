@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Search } from 'lucide-react';
-import { getGroupedCourseAttendanceDetail } from '../../api/attendance';
+import { ArrowLeft, Calendar, Search, X } from 'lucide-react';
+import { getGroupedCourseAttendanceDetail, getGroupedTITAttendanceDetail } from '../../api/attendance';
 import { getApiErrorMessage } from '../../api/axiosClient';
 import ErrorBanner from '../../components/ErrorBanner';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -70,13 +70,15 @@ const SummaryCard = ({ label, value: cardValue }) => (
   </div>
 );
 
-const CourseAttendanceDetail = () => {
+const CourseAttendanceDetail = ({ isTIT = false }) => {
   const { courseId: courseKey } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -84,10 +86,12 @@ const CourseAttendanceDetail = () => {
       setLoading(true);
       setError('');
       try {
-        const response = await getGroupedCourseAttendanceDetail(courseKey);
+        const response = isTIT
+          ? await getGroupedTITAttendanceDetail(courseKey)
+          : await getGroupedCourseAttendanceDetail(courseKey);
         if (active) setData(unwrap(response));
       } catch (err) {
-        if (active) setError(getApiErrorMessage(err, 'Unable to load grouped course attendance'));
+        if (active) setError(getApiErrorMessage(err, isTIT ? 'Unable to load grouped TIT class attendance' : 'Unable to load grouped course attendance'));
       } finally {
         if (active) setLoading(false);
       }
@@ -100,6 +104,30 @@ const CourseAttendanceDetail = () => {
 
   const courseData = data?.course || data || {};
   const summary = courseData?.summary || courseData || {};
+
+  const uniqueMonths = useMemo(() => {
+    const months = new Set();
+    const rows = pickOccurrences(data || {});
+    rows.forEach((row) => {
+      const dateStr = value(row.date, row.occurrenceDate, row.startsAt);
+      if (dateStr) {
+        const parsed = new Date(dateStr);
+        if (!Number.isNaN(parsed.getTime())) {
+          const year = parsed.getFullYear();
+          const month = String(parsed.getMonth() + 1).padStart(2, '0');
+          months.add(`${year}-${month}`);
+        }
+      }
+    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [data]);
+
+  const formatMonthLabel = (yearMonthStr) => {
+    const [year, month] = yearMonthStr.split('-');
+    const date = new Date(year, parseInt(month, 10) - 1, 1);
+    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  };
+
   const occurrences = useMemo(() => {
     const query = search.trim().toLowerCase();
     const rows = pickOccurrences(data || {}).map((row) => ({
@@ -114,9 +142,33 @@ const CourseAttendanceDetail = () => {
       pendingCount: count(row.pendingCount, row.pending),
       attendancePercentage: count(row.attendancePercentage, row.averageAttendancePercentage),
     }));
-    if (!query) return rows;
-    return rows.filter((row) => `${row.date} ${row.runtimeStatus} ${row.trainerStatus}`.toLowerCase().includes(query));
-  }, [data, search]);
+
+    return rows.filter((row) => {
+      if (query) {
+        const matchesQuery = `${row.date} ${row.runtimeStatus} ${row.trainerStatus}`.toLowerCase().includes(query);
+        if (!matchesQuery) return false;
+      }
+
+      if (selectedMonth && row.date) {
+        const parsed = new Date(row.date);
+        if (!Number.isNaN(parsed.getTime())) {
+          const year = parsed.getFullYear();
+          const month = String(parsed.getMonth() + 1).padStart(2, '0');
+          const rowMonth = `${year}-${month}`;
+          if (rowMonth !== selectedMonth) return false;
+        } else {
+          return false;
+        }
+      }
+
+      if (selectedDate && row.date) {
+        const rowDateKey = formatDateKey(row.date);
+        if (rowDateKey !== selectedDate) return false;
+      }
+
+      return true;
+    });
+  }, [data, search, selectedMonth, selectedDate]);
 
   if (loading) return <LoadingSpinner label="Loading course attendance..." />;
 
@@ -129,7 +181,7 @@ const CourseAttendanceDetail = () => {
           className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
           aria-label="Back to attendance"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-5 w-5" /> 
         </button>
         <div>
           <h2 className="text-2xl font-bold text-slate-900">{value(courseData?.courseTitle, courseData?.courseName, courseData?.title, 'Course Attendance')}</h2>
@@ -160,19 +212,63 @@ const CourseAttendanceDetail = () => {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">Date / Session Occurrences</h3>
-            <p className="text-sm text-slate-500">Select a day to inspect student and trainer attendance separately.</p>
+        <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50 px-5 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Date / Session Occurrences</h3>
+              <p className="text-sm text-slate-500">Select a day to inspect student and trainer attendance separately.</p>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search dates or statuses..."
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
           </div>
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search dates or statuses..."
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-            />
+
+          <div className="flex flex-wrap items-end gap-4 pt-3 border-t border-slate-200/60">
+            <div className="flex flex-col gap-1.5 w-full sm:w-auto min-w-[180px]">
+              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Filter by Month</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              >
+                <option value="">All Months</option>
+                {uniqueMonths.map((month) => (
+                  <option key={month} value={month}>
+                    {formatMonthLabel(month)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+              <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Filter by Date</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
+
+            {(selectedMonth || selectedDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMonth('');
+                  setSelectedDate('');
+                }}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 transition hover:bg-rose-100 w-full sm:w-auto"
+              >
+                <X className="h-4 w-4" />
+                Clear Filters
+              </button>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -216,7 +312,10 @@ const CourseAttendanceDetail = () => {
                         <button
                           type="button"
                           disabled={!dateKey}
-                          onClick={() => navigate(`/courses/${encodeURIComponent(courseKey)}/attendance/${encodeURIComponent(dateKey)}`)}
+                          onClick={() => navigate(isTIT
+                            ? `/tit/${encodeURIComponent(courseKey)}/attendance/${encodeURIComponent(dateKey)}`
+                            : `/courses/${encodeURIComponent(courseKey)}/attendance/${encodeURIComponent(dateKey)}`
+                          )}
                           className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           View Day

@@ -64,10 +64,10 @@ const SessionAttendanceRoster = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const fetchSessionAttendance = async () => {
+  const fetchSessionAttendance = async (silent = false) => {
     try {
-      setLoading(true);
-      setError('');
+      if (!silent) setLoading(true);
+      if (!silent) setError('');
       const res = date ? await fetchDayAttendance(sessionId, date) : await getSessionAttendance(sessionId);
       const resData = res.data || res;
       setTrainerAttendance(resData.trainerAttendance || null);
@@ -75,15 +75,21 @@ const SessionAttendanceRoster = () => {
       setSummary(resData.summary || {});
     } catch (err) {
       const message = err?.message || 'Failed to load session attendance records';
-      setError(message);
-      toast.error(message);
+      if (!silent) setError(message);
+      if (!silent) toast.error(message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchSessionAttendance();
+    
+    const interval = setInterval(() => {
+      fetchSessionAttendance(true);
+    }, 30000);
+    
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, date]);
 

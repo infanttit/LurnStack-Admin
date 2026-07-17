@@ -327,3 +327,20 @@ export const getStudentAttendance = async (studentId) => {
   const response = await axiosClient.get(`/api/admin/students/${studentId}/attendance`);
   return normalizeResponse(response);
 };
+
+export const getGroupedTITAttendance = async () => {
+  const response = await axiosClient.get('/api/admin/attendance/tit/grouped');
+  return response.data;
+};
+
+export const getGroupedTITAttendanceDetail = async (courseKey) => {
+  const response = await axiosClient.get(`/api/admin/attendance/tit/${encodeURIComponent(courseKey)}/grouped`);
+  return response.data;
+};
+
+export const getGroupedTITDayAttendance = async (courseKey, dateString) => {
+  const response = await axiosClient.get(
+    `/api/admin/attendance/tit/${encodeURIComponent(courseKey)}/dates/${encodeURIComponent(dateString)}`
+  );
+  return response.data;
+};

@@ -70,6 +70,8 @@ function App() {
           <Route path="attendance" element={<AttendanceOverview />} />
           <Route path="courses/:courseId/attendance" element={<CourseAttendanceDetail />} />
           <Route path="courses/:courseKey/attendance/:date" element={<CourseAttendanceDay />} />
+          <Route path="tit/:courseId/attendance" element={<CourseAttendanceDetail isTIT={true} />} />
+          <Route path="tit/:courseKey/attendance/:date" element={<CourseAttendanceDay isTIT={true} />} />
           <Route path="sessions/:sessionId/attendance" element={<SessionOccurrences />} />
           <Route path="sessions/:sessionId/attendance/:date" element={<SessionAttendanceRoster />} />
           <Route path="trainers/:trainerId/attendance" element={<TrainerAttendanceReport />} />

@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Bug, Search, User, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, Bug, Calendar, Search, User, Users, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { fetchAdminStudents, fetchAdminTrainers } from '../../api/adminDashboard';
 import {
   getAllAttendanceRecords,
   getGroupedCourseAttendance,
   getGroupedStudentAttendance,
   getGroupedTrainerAttendance,
+  getAttendanceOverview,
+  getGroupedTITAttendance,
 } from '../../api/attendance';
 import { getApiErrorMessage } from '../../api/axiosClient';
 import ErrorBanner from '../../components/ErrorBanner';
@@ -17,6 +19,7 @@ const tabs = [
   { key: 'students', label: 'Students', icon: Users },
   { key: 'trainers', label: 'Trainers', icon: User },
   { key: 'records', label: 'Records', icon: Bug },
+  { key: 'tit', label: 'TIT Classes', icon: Calendar },
 ];
 
 const activeCourseStatuses = ['live', 'running', 'upcoming'];
@@ -47,6 +50,22 @@ const formatTime = (date) => {
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return String(date);
   return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatDateKey = (date) => {
+  if (!date) return '';
+  const raw = String(date);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toISOString().slice(0, 10);
+};
+
+const formatMonthLabel = (yearMonthStr) => {
+  if (!yearMonthStr) return '';
+  const [year, month] = yearMonthStr.split('-');
+  const date = new Date(year, parseInt(month, 10) - 1, 1);
+  return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 };
 
 const getId = (row) => value(row?.id, row?._id, row?.studentId, row?.trainerId);
@@ -252,37 +271,13 @@ const PersonPicker = ({ rows, selectedId, onSelect, search, onSearch, placeholde
   );
 };
 
-const CoursesTab = () => {
+const CoursesTab = ({ courses = [], loading, error }) => {
   const navigate = useNavigate();
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    const loadCourses = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const response = await getGroupedCourseAttendance();
-        if (!active) return;
-        setCourses(pickList(response, ['courses', 'items', 'records', 'data']).map(normalizeCourse));
-      } catch (err) {
-        if (active) setError(getApiErrorMessage(err, 'Unable to load grouped course attendance'));
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    loadCourses();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const filteredCourses = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const sorted = [...courses].sort((a, b) => {
+    const sorted = [...(courses || [])].sort((a, b) => {
       const aActive = activeCourseStatuses.includes(String(a.status).toLowerCase()) ? 0 : 1;
       const bActive = activeCourseStatuses.includes(String(b.status).toLowerCase()) ? 0 : 1;
       return aActive - bActive || String(a.courseName).localeCompare(String(b.courseName));
@@ -362,6 +357,116 @@ const CoursesTab = () => {
   );
 };
 
+const TITClassesTab = () => {
+  const navigate = useNavigate();
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadTITClasses = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await getGroupedTITAttendance();
+        if (active) {
+          const items = pickList(response, ['courses', 'items', 'records', 'data']).map(normalizeCourse);
+          setClasses(items);
+        }
+      } catch (err) {
+        if (active) setError(getApiErrorMessage(err, 'Unable to load TIT class attendance'));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadTITClasses();
+    return () => { active = false; };
+  }, []);
+
+  const filteredClasses = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const sorted = [...(classes || [])].sort((a, b) => {
+      const aActive = activeCourseStatuses.includes(String(a.status).toLowerCase()) ? 0 : 1;
+      const bActive = activeCourseStatuses.includes(String(b.status).toLowerCase()) ? 0 : 1;
+      return aActive - bActive || String(a.courseName).localeCompare(String(b.courseName));
+    });
+    if (!query) return sorted;
+    return sorted.filter((c) => `${c.courseName} ${c.trainerName} ${c.status}`.toLowerCase().includes(query));
+  }, [classes, search]);
+
+  if (loading) return <LoadingSpinner label="Loading TIT classes..." />;
+
+  return (
+    <div className="space-y-4">
+      {error ? <ErrorBanner message={error} /> : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">TIT Class Attendance</h3>
+          <p className="text-sm text-slate-500">Live, running, and upcoming TIT classes are shown first.</p>
+        </div>
+        <SearchBox value={search} onChange={setSearch} placeholder="Search class or trainer..." />
+      </div>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1320px] text-left text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Class Name</th>
+                <th className="px-4 py-3">Trainer</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-center">Total Students</th>
+                <th className="px-4 py-3 text-center">Total Sessions</th>
+                <th className="px-4 py-3 text-center">Completed Sessions</th>
+                <th className="px-4 py-3 text-center">Upcoming Sessions</th>
+                <th className="px-4 py-3 text-center">Present</th>
+                <th className="px-4 py-3 text-center">Late</th>
+                <th className="px-4 py-3 text-center">Absent</th>
+                <th className="px-4 py-3 text-center">Pending</th>
+                <th className="px-4 py-3 text-center">Average Attendance %</th>
+                <th className="px-4 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {filteredClasses.length === 0 ? (
+                <EmptyRow colSpan={13} message="No TIT class attendance found." />
+              ) : (
+                filteredClasses.map((c) => (
+                  <tr key={c.courseKey || c.courseName} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-bold text-slate-900">{c.courseName}</td>
+                    <td className="px-4 py-3">{c.trainerName}</td>
+                    <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+                    <td className="px-4 py-3 text-center font-semibold">{c.totalStudents}</td>
+                    <td className="px-4 py-3 text-center font-semibold">{c.totalSessions}</td>
+                    <td className="px-4 py-3 text-center font-semibold">{c.completedSessions}</td>
+                    <td className="px-4 py-3 text-center font-semibold">{c.upcomingSessions}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-emerald-600">{c.presentCount}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-amber-600">{c.lateCount}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-rose-600">{c.absentCount}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-slate-500">{c.pendingCount}</td>
+                    <td className="px-4 py-3 text-center font-black text-slate-900">{c.attendancePercentage}%</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        disabled={!c.courseKey}
+                        onClick={() => navigate(`/tit/${encodeURIComponent(c.courseKey)}/attendance`)}
+                        className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        View Attendance
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const GroupedCourseRecords = ({ rows, personType }) => {
   if (!rows.length) {
     return <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-500">No grouped attendance records found.</div>;
@@ -417,12 +522,71 @@ const GroupedCourseRecords = ({ rows, personType }) => {
   );
 };
 
-const StudentGroupedView = ({ data }) => {
-  if (!data) return null;
+const StudentGroupedView = ({ data, courseFilter, monthFilter, dateFilter }) => {
   const grouped = normalizeGroupedCourse(unwrap(data));
-  const summary = grouped.summary || {};
-  const courses = asArray(grouped.courses.length ? grouped.courses : grouped.records);
   const profile = unwrap(data).student || unwrap(data).profile || unwrap(data);
+  const rawCourses = asArray(grouped.courses?.length ? grouped.courses : grouped.records);
+
+  const filteredCourses = useMemo(() => {
+    if (!data) return [];
+    let list = rawCourses;
+    if (courseFilter) {
+      list = list.filter((c) => {
+        const key = value(c.courseKey, c.courseId, c.courseName);
+        return String(key) === String(courseFilter);
+      });
+    }
+
+    return list.map((c) => {
+      let records = asArray(c.records || c.sessions || c.occurrences || c.dates || c.attendance);
+      if (monthFilter) {
+        records = records.filter((r) => {
+          const rDate = value(r.date, r.occurrenceDate, r.startsAt);
+          if (!rDate) return false;
+          const parsed = new Date(rDate);
+          if (Number.isNaN(parsed.getTime())) return false;
+          const year = parsed.getFullYear();
+          const month = String(parsed.getMonth() + 1).padStart(2, '0');
+          return `${year}-${month}` === monthFilter;
+        });
+      }
+      if (dateFilter) {
+        records = records.filter((r) => {
+          const rDate = value(r.date, r.occurrenceDate, r.startsAt);
+          if (!rDate) return false;
+          return formatDateKey(rDate) === dateFilter;
+        });
+      }
+      return { ...c, records };
+    }).filter((c) => c.records.length > 0);
+  }, [rawCourses, courseFilter, monthFilter, dateFilter, data]);
+
+  const summary = useMemo(() => {
+    let presentCount = 0;
+    let lateCount = 0;
+    let absentCount = 0;
+    let pendingCount = 0;
+    let totalRecords = 0;
+
+    filteredCourses.forEach((c) => {
+      c.records.forEach((r) => {
+        const status = String(r.status || 'pending').toLowerCase();
+        if (status === 'present') presentCount++;
+        else if (status === 'late') lateCount++;
+        else if (status === 'absent') absentCount++;
+        else pendingCount++;
+        totalRecords++;
+      });
+    });
+
+    const attendedCount = presentCount + lateCount;
+    const totalMarked = presentCount + lateCount + absentCount;
+    const attendancePercentage = totalMarked > 0 ? Math.round((attendedCount / totalMarked) * 100) : 0;
+
+    return { attendancePercentage, presentCount, lateCount, absentCount, pendingCount, totalRecords };
+  }, [filteredCourses]);
+
+  if (!data) return null;
 
   return (
     <div className="space-y-5">
@@ -432,24 +596,85 @@ const StudentGroupedView = ({ data }) => {
         <p className="text-sm text-slate-500">{value(profile.email, profile.phone, profile.studentId, '')}</p>
       </div>
       <MetricStrip items={[
-        { label: 'Attendance %', value: `${percent(summary.attendancePercentage, summary.averageAttendancePercentage)}%` },
-        { label: 'Present', value: count(summary.presentCount) },
-        { label: 'Late', value: count(summary.lateCount) },
-        { label: 'Absent', value: count(summary.absentCount) },
-        { label: 'Pending', value: count(summary.pendingCount) },
-        { label: 'Total Records', value: count(summary.totalRecords, summary.totalSessions) },
+        { label: 'Attendance %', value: `${summary.attendancePercentage}%` },
+        { label: 'Present', value: summary.presentCount },
+        { label: 'Late', value: summary.lateCount },
+        { label: 'Absent', value: summary.absentCount },
+        { label: 'Pending', value: summary.pendingCount },
+        { label: 'Total Records', value: summary.totalRecords },
       ]} />
-      <GroupedCourseRecords rows={courses} personType="student" />
+      <GroupedCourseRecords rows={filteredCourses} personType="student" />
     </div>
   );
 };
 
-const TrainerGroupedView = ({ data }) => {
-  if (!data) return null;
+const TrainerGroupedView = ({ data, courseFilter, monthFilter, dateFilter }) => {
   const grouped = normalizeGroupedCourse(unwrap(data));
-  const summary = grouped.summary || {};
-  const courses = asArray(grouped.courses.length ? grouped.courses : grouped.records);
   const profile = unwrap(data).trainer || unwrap(data).profile || unwrap(data);
+  const rawCourses = asArray(grouped.courses?.length ? grouped.courses : grouped.records);
+
+  const filteredCourses = useMemo(() => {
+    if (!data) return [];
+    let list = rawCourses;
+    if (courseFilter) {
+      list = list.filter((c) => {
+        const key = value(c.courseKey, c.courseId, c.courseName);
+        return String(key) === String(courseFilter);
+      });
+    }
+
+    return list.map((c) => {
+      let records = asArray(c.records || c.sessions || c.occurrences || c.dates || c.attendance);
+      if (monthFilter) {
+        records = records.filter((r) => {
+          const rDate = value(r.date, r.occurrenceDate, r.startsAt);
+          if (!rDate) return false;
+          const parsed = new Date(rDate);
+          if (Number.isNaN(parsed.getTime())) return false;
+          const year = parsed.getFullYear();
+          const month = String(parsed.getMonth() + 1).padStart(2, '0');
+          return `${year}-${month}` === monthFilter;
+        });
+      }
+      if (dateFilter) {
+        records = records.filter((r) => {
+          const rDate = value(r.date, r.occurrenceDate, r.startsAt);
+          if (!rDate) return false;
+          return formatDateKey(rDate) === dateFilter;
+        });
+      }
+      return { ...c, records };
+    }).filter((c) => c.records.length > 0);
+  }, [rawCourses, courseFilter, monthFilter, dateFilter, data]);
+
+  const summary = useMemo(() => {
+    let totalSessions = 0;
+    let completedSessions = 0;
+    let upcomingSessions = 0;
+    let presentCount = 0;
+    let lateCount = 0;
+    let absentCount = 0;
+
+    filteredCourses.forEach((c) => {
+      c.records.forEach((r) => {
+        const status = String(r.status || 'pending').toLowerCase();
+        if (status === 'present') presentCount++;
+        else if (status === 'late') lateCount++;
+        else if (status === 'absent') absentCount++;
+
+        if (r.runtimeStatus === 'completed' || status === 'completed') {
+          completedSessions++;
+        } else {
+          upcomingSessions++;
+        }
+        totalSessions++;
+      });
+    });
+
+    return { totalSessions, completedSessions, upcomingSessions, presentCount, lateCount, absentCount };
+  }, [filteredCourses]);
+
+  if (!data) return null;
 
   return (
     <div className="space-y-5">
@@ -459,19 +684,19 @@ const TrainerGroupedView = ({ data }) => {
         <p className="text-sm text-slate-500">{value(profile.email, profile.phone, profile.trainerId, '')}</p>
       </div>
       <MetricStrip items={[
-        { label: 'Total Sessions', value: count(summary.totalSessions, summary.totalRecords) },
-        { label: 'Completed', value: count(summary.completedSessions) },
-        { label: 'Upcoming', value: count(summary.upcomingSessions) },
-        { label: 'Present', value: count(summary.presentCount) },
-        { label: 'Late', value: count(summary.lateCount) },
-        { label: 'Absent', value: count(summary.absentCount) },
+        { label: 'Total Sessions', value: summary.totalSessions },
+        { label: 'Completed', value: summary.completedSessions },
+        { label: 'Upcoming', value: summary.upcomingSessions },
+        { label: 'Present', value: summary.presentCount },
+        { label: 'Late', value: summary.lateCount },
+        { label: 'Absent', value: summary.absentCount },
       ]} />
-      <GroupedCourseRecords rows={courses} personType="trainer" />
+      <GroupedCourseRecords rows={filteredCourses} personType="trainer" />
     </div>
   );
 };
 
-const StudentsTab = () => {
+const StudentsTab = ({ courseFilter, monthFilter, dateFilter }) => {
   const [students, setStudents] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [search, setSearch] = useState('');
@@ -525,13 +750,13 @@ const StudentsTab = () => {
       <div className="space-y-4">
         {error ? <ErrorBanner message={error} /> : null}
         {!selectedId ? <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-500">Select a student to view grouped attendance.</div> : null}
-        {loadingDetail ? <LoadingSpinner label="Loading student attendance..." /> : <StudentGroupedView data={data} />}
+        {loadingDetail ? <LoadingSpinner label="Loading student attendance..." /> : <StudentGroupedView data={data} courseFilter={courseFilter} monthFilter={monthFilter} dateFilter={dateFilter} />}
       </div>
     </div>
   );
 };
 
-const TrainersTab = () => {
+const TrainersTab = ({ courseFilter, monthFilter, dateFilter }) => {
   const [trainers, setTrainers] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [search, setSearch] = useState('');
@@ -585,13 +810,12 @@ const TrainersTab = () => {
       <div className="space-y-4">
         {error ? <ErrorBanner message={error} /> : null}
         {!selectedId ? <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-500">Select a trainer to view grouped attendance.</div> : null}
-        {loadingDetail ? <LoadingSpinner label="Loading trainer attendance..." /> : <TrainerGroupedView data={data} />}
+        {loadingDetail ? <LoadingSpinner label="Loading trainer attendance..." /> : <TrainerGroupedView data={data} courseFilter={courseFilter} monthFilter={monthFilter} dateFilter={dateFilter} />}
       </div>
     </div>
   );
 };
-
-const RecordsTab = () => {
+const RecordsTab = ({ courseFilter, monthFilter, dateFilter }) => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -622,10 +846,35 @@ const RecordsTab = () => {
     if (statusFilter !== 'all') {
       list = list.filter((record) => String(record.status || 'pending').toLowerCase() === statusFilter);
     }
+    if (courseFilter) {
+      list = list.filter((record) => {
+        const recordCourse = value(record.courseId, record.courseName);
+        return String(recordCourse) === String(courseFilter);
+      });
+    }
+    if (monthFilter) {
+      list = list.filter((record) => {
+        const rDate = value(record.date, record.occurrenceDate, record.startsAt);
+        if (!rDate) return false;
+        const parsed = new Date(rDate);
+        if (Number.isNaN(parsed.getTime())) return false;
+        const year = parsed.getFullYear();
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        return `${year}-${month}` === monthFilter;
+      });
+    }
+    if (dateFilter) {
+      list = list.filter((record) => {
+        const rDate = value(record.date, record.occurrenceDate, record.startsAt);
+        if (!rDate) return false;
+        return formatDateKey(rDate) === dateFilter;
+      });
+    }
+
     const query = search.trim().toLowerCase();
     if (!query) return list;
     return list.filter((record) => JSON.stringify(record).toLowerCase().includes(query));
-  }, [records, search, statusFilter]);
+  }, [records, search, statusFilter, courseFilter, monthFilter, dateFilter]);
 
   const paginatedRecords = useMemo(() => {
     return filteredRecords.slice((currentPage - 1) * 15, currentPage * 15);
@@ -633,7 +882,7 @@ const RecordsTab = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter]);
+  }, [search, statusFilter, courseFilter, monthFilter, dateFilter]);
 
   if (loading) return <LoadingSpinner label="Loading raw records..." />;
 
@@ -705,13 +954,335 @@ const RecordsTab = () => {
 };
 
 const AttendanceOverview = () => {
-  const [activeTab, setActiveTab] = useState('courses');
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('attendance_active_tab') || 'courses';
+  });
+  
+  const handleTabChange = (key) => {
+    setActiveTab(key);
+    localStorage.setItem('attendance_active_tab', key);
+  };
+
+  const [courses, setCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
+  const [errorCourses, setErrorCourses] = useState('');
+
+  // Global filters
+  const [globalCourseFilter, setGlobalCourseFilter] = useState('');
+  const [globalMonthFilter, setGlobalMonthFilter] = useState('');
+  const [globalDateFilter, setGlobalDateFilter] = useState('');
+
+  // Today's Stats
+  const [todayStats, setTodayStats] = useState(null);
+  const [loadingTodayStats, setLoadingTodayStats] = useState(true);
+
+  // Load course grouped attendance
+  useEffect(() => {
+    let active = true;
+    const loadCourses = async () => {
+      setLoadingCourses(true);
+      setErrorCourses('');
+      try {
+        const response = await getGroupedCourseAttendance();
+        if (!active) return;
+        setCourses(pickList(response, ['courses', 'items', 'records', 'data']).map(normalizeCourse));
+      } catch (err) {
+        if (active) setErrorCourses(getApiErrorMessage(err, 'Unable to load grouped course attendance'));
+      } finally {
+        if (active) setLoadingCourses(false);
+      }
+    };
+    loadCourses();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Fetch Today's stats
+  useEffect(() => {
+    let active = true;
+    const loadTodayStats = async () => {
+      setLoadingTodayStats(true);
+      try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const res = await getAttendanceOverview(todayStr);
+        if (active) {
+          setTodayStats(res?.data || res);
+        }
+      } catch (err) {
+        console.error("Failed to load today's stats", err);
+      } finally {
+        if (active) setLoadingTodayStats(false);
+      }
+    };
+    loadTodayStats();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Derived filter options
+  const allCourseOptions = useMemo(() => {
+    const unique = new Map();
+    courses.forEach((c) => {
+      const id = c.courseKey || c.courseId || c.courseName;
+      if (id && !unique.has(id)) {
+        unique.set(id, c.courseName);
+      }
+    });
+    return Array.from(unique.entries()).map(([id, name]) => ({ id, name }));
+  }, [courses]);
+
+  const allMonthOptions = useMemo(() => {
+    const months = new Set();
+    courses.forEach((c) => {
+      const occurrences = c.occurrences || [];
+      occurrences.forEach((occ) => {
+        const dateStr = value(occ.date, occ.occurrenceDate, occ.startsAt);
+        if (dateStr) {
+          const parsed = new Date(dateStr);
+          if (!Number.isNaN(parsed.getTime())) {
+            const year = parsed.getFullYear();
+            const month = String(parsed.getMonth() + 1).padStart(2, '0');
+            months.add(`${year}-${month}`);
+          }
+        }
+      });
+    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [courses]);
+
+  // Apply filters to course list and recalculate stats on the fly
+  const filteredCourses = useMemo(() => {
+    let list = courses;
+    if (globalCourseFilter) {
+      list = list.filter((c) => String(c.courseKey || c.courseId || c.courseName) === String(globalCourseFilter));
+    }
+
+    return list.map((c) => {
+      let occurrences = c.occurrences || [];
+      if (globalMonthFilter) {
+        occurrences = occurrences.filter((occ) => {
+          const dateStr = value(occ.date, occ.occurrenceDate, occ.startsAt);
+          if (!dateStr) return false;
+          const parsed = new Date(dateStr);
+          if (Number.isNaN(parsed.getTime())) return false;
+          const year = parsed.getFullYear();
+          const month = String(parsed.getMonth() + 1).padStart(2, '0');
+          return `${year}-${month}` === globalMonthFilter;
+        });
+      }
+
+      if (globalDateFilter) {
+        occurrences = occurrences.filter((occ) => {
+          const dateStr = value(occ.date, occ.occurrenceDate, occ.startsAt);
+          if (!dateStr) return false;
+          return formatDateKey(dateStr) === globalDateFilter;
+        });
+      }
+
+      // If month or date filters are applied, recalculate stats
+      if (globalMonthFilter || globalDateFilter) {
+        let presentCount = 0;
+        let lateCount = 0;
+        let absentCount = 0;
+        let pendingCount = 0;
+
+        occurrences.forEach((occ) => {
+          presentCount += count(occ.presentCount);
+          lateCount += count(occ.lateCount);
+          absentCount += count(occ.absentCount);
+          pendingCount += count(occ.pendingCount);
+        });
+
+        const completedSessions = occurrences.filter((occ) => occ.status === 'completed' || occ.runtimeStatus === 'completed').length;
+        const upcomingSessions = occurrences.filter((occ) => occ.status === 'upcoming' || occ.runtimeStatus === 'upcoming' || occ.status === 'scheduled').length;
+        const attendedCount = presentCount + lateCount;
+        const totalMarked = presentCount + lateCount + absentCount;
+        const attendancePercentage = totalMarked > 0 ? Math.round((attendedCount / totalMarked) * 100) : 0;
+
+        return {
+          ...c,
+          totalSessions: occurrences.length,
+          completedSessions,
+          upcomingSessions,
+          presentCount,
+          lateCount,
+          absentCount,
+          pendingCount,
+          attendancePercentage,
+          occurrencesCount: occurrences.length,
+        };
+      }
+
+      return {
+        ...c,
+        occurrencesCount: occurrences.length,
+      };
+    }).filter((c) => {
+      if (globalMonthFilter || globalDateFilter) {
+        return c.occurrencesCount > 0;
+      }
+      return true;
+    });
+  }, [courses, globalCourseFilter, globalMonthFilter, globalDateFilter]);
+
+  // Recalculate overall global summary totals
+  const globalSummary = useMemo(() => {
+    let presentCount = 0;
+    let lateCount = 0;
+    let absentCount = 0;
+    let pendingCount = 0;
+    let totalSessions = 0;
+
+    filteredCourses.forEach((c) => {
+      presentCount += count(c.presentCount);
+      lateCount += count(c.lateCount);
+      absentCount += count(c.absentCount);
+      pendingCount += count(c.pendingCount);
+      totalSessions += count(c.totalSessions);
+    });
+
+    const totalStudents = courses.length && globalCourseFilter
+      ? (filteredCourses[0]?.totalStudents ?? 0)
+      : filteredCourses.reduce((sum, c) => sum + count(c.totalStudents), 0);
+
+    const attendedCount = presentCount + lateCount;
+    const totalMarked = presentCount + lateCount + absentCount;
+    const attendancePercentage = totalMarked > 0 ? Math.round((attendedCount / totalMarked) * 100) : 0;
+
+    return {
+      totalStudents,
+      totalSessions,
+      attendancePercentage,
+      presentCount,
+      lateCount,
+      absentCount,
+      pendingCount,
+    };
+  }, [filteredCourses, globalCourseFilter, courses]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Admin Attendance</h2>
-        <p className="mt-1 text-sm text-slate-500">Grouped attendance by course, student, trainer, and raw records.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Admin Attendance</h2>
+          <p className="mt-1 text-sm text-slate-500">Grouped attendance by course, student, trainer, and raw records.</p>
+        </div>
+
+        {/* Today's Stats Widget */}
+        {loadingTodayStats ? (
+          <div className="h-16 w-60 animate-pulse rounded-lg bg-slate-100 border border-slate-200"></div>
+        ) : todayStats && (
+          <div className="flex items-center gap-4 bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
+            <div className="text-center border-r border-slate-100 pr-3">
+              <span className="block text-xs font-bold text-slate-400 uppercase">Today's Attendance</span>
+              <span className="mt-0.5 block text-lg font-black text-slate-900">
+                {todayStats.summary?.attendancePercentage ?? 0}%
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500">
+              <div>Present: <span className="font-bold text-emerald-600">{todayStats.summary?.presentCount ?? 0}</span></div>
+              <div>Late: <span className="font-bold text-amber-600">{todayStats.summary?.lateCount ?? 0}</span></div>
+              <div>Absent: <span className="font-bold text-rose-600">{todayStats.summary?.absentCount ?? 0}</span></div>
+              <div>Pending: <span className="font-bold text-slate-500">{todayStats.summary?.pendingCount ?? 0}</span></div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Global Filters Panel */}
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1.5 w-full sm:w-auto min-w-[200px]">
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Class (Course)</label>
+            <select
+              value={globalCourseFilter}
+              onChange={(e) => setGlobalCourseFilter(e.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            >
+              <option value="">All Classes</option>
+              {allCourseOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 w-full sm:w-auto min-w-[180px]">
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Month</label>
+            <select
+              value={globalMonthFilter}
+              onChange={(e) => setGlobalMonthFilter(e.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            >
+              <option value="">All Months</option>
+              {allMonthOptions.map((m) => (
+                <option key={m} value={m}>
+                  {formatMonthLabel(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+            <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Date</label>
+            <input
+              type="date"
+              value={globalDateFilter}
+              onChange={(e) => setGlobalDateFilter(e.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+
+          {(globalCourseFilter || globalMonthFilter || globalDateFilter) && (
+            <button
+              type="button"
+              onClick={() => {
+                setGlobalCourseFilter('');
+                setGlobalMonthFilter('');
+                setGlobalDateFilter('');
+              }}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 transition hover:bg-rose-100 w-full sm:w-auto"
+            >
+              <X className="h-4 w-4" />
+              Clear Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Global Summary Metrics Cards Grid */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7 animate-in fade-in duration-300">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Total Students</p>
+          <p className="mt-2 text-xl font-black text-slate-900">{globalSummary.totalStudents}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Total Sessions</p>
+          <p className="mt-2 text-xl font-black text-slate-900">{globalSummary.totalSessions}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Attendance %</p>
+          <p className="mt-2 text-xl font-black text-slate-900">{globalSummary.attendancePercentage}%</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Present</p>
+          <p className="mt-2 text-xl font-black text-emerald-600">{globalSummary.presentCount}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Late</p>
+          <p className="mt-2 text-xl font-black text-amber-600">{globalSummary.lateCount}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Absent</p>
+          <p className="mt-2 text-xl font-black text-rose-600">{globalSummary.absentCount}</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Pending</p>
+          <p className="mt-2 text-xl font-black text-slate-500">{globalSummary.pendingCount}</p>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
@@ -723,7 +1294,7 @@ const AttendanceOverview = () => {
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabChange(tab.key)}
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition ${selected ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
               >
                 <Icon className="h-4 w-4" />
@@ -734,10 +1305,37 @@ const AttendanceOverview = () => {
         </div>
       </div>
 
-      {activeTab === 'courses' ? <CoursesTab /> : null}
-      {activeTab === 'students' ? <StudentsTab /> : null}
-      {activeTab === 'trainers' ? <TrainersTab /> : null}
-      {activeTab === 'records' ? <RecordsTab /> : null}
+      {activeTab === 'courses' ? (
+        <CoursesTab
+          courses={filteredCourses}
+          loading={loadingCourses}
+          error={errorCourses}
+        />
+      ) : null}
+      {activeTab === 'students' ? (
+        <StudentsTab
+          courseFilter={globalCourseFilter}
+          monthFilter={globalMonthFilter}
+          dateFilter={globalDateFilter}
+        />
+      ) : null}
+      {activeTab === 'trainers' ? (
+        <TrainersTab
+          courseFilter={globalCourseFilter}
+          monthFilter={globalMonthFilter}
+          dateFilter={globalDateFilter}
+        />
+      ) : null}
+      {activeTab === 'records' ? (
+        <RecordsTab
+          courseFilter={globalCourseFilter}
+          monthFilter={globalMonthFilter}
+          dateFilter={globalDateFilter}
+        />
+      ) : null}
+      {activeTab === 'tit' ? (
+        <TITClassesTab />
+      ) : null}
     </div>
   );
 };
