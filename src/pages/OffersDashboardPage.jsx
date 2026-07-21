@@ -9,7 +9,9 @@ import {
   Image as ImageIcon, 
   CheckCircle2, 
   Clock, 
-  Gift
+  Gift,
+  Film,
+  Video
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { 
@@ -19,7 +21,10 @@ import {
   deleteOfferApi, 
   uploadPosterApi,
   fetchPostersApi,
-  deletePosterApi
+  deletePosterApi,
+  fetchReelsApi,
+  uploadReelApi,
+  deleteReelApi
 } from '../api/offers';
 import { getApiErrorMessage, resolveAssetUrl } from '../api/axiosClient';
 
@@ -57,12 +62,44 @@ const OffersDashboardPage = () => {
   const [loadingPosters, setLoadingPosters] = useState(true);
   const [deletingPosterId, setDeletingPosterId] = useState(null);
 
+  // Video Reels State
+  const [reelForm, setReelForm] = useState({
+    courseName: '',
+    trainerName: '',
+    caption: '',
+    audioTitle: '',
+    ctaText: 'Register',
+    isLive: true,
+    isActive: true
+  });
+  const [reelVideoFile, setReelVideoFile] = useState(null);
+  const [reelLogoFile, setReelLogoFile] = useState(null);
+  const [reelVideoPreview, setReelVideoPreview] = useState(null);
+  const [reelLogoPreview, setReelLogoPreview] = useState(null);
+  const [submittingReel, setSubmittingReel] = useState(false);
+  const [reels, setReels] = useState([]);
+  const [loadingReels, setLoadingReels] = useState(true);
+  const [deletingReelId, setDeletingReelId] = useState(null);
+
   // Fetch initial data
   useEffect(() => {
     loadCategories();
     loadOffers();
     loadPosters();
+    loadReels();
   }, []);
+
+  const loadReels = async () => {
+    setLoadingReels(true);
+    try {
+      const data = await fetchReelsApi();
+      setReels(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingReels(false);
+    }
+  };
 
   const loadCategories = async () => {
     setLoadingCategories(true);
@@ -255,6 +292,94 @@ const OffersDashboardPage = () => {
     }
   };
 
+  const handleReelVideoChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type.startsWith('video/')) {
+        setReelVideoFile(file);
+        setReelVideoPreview(URL.createObjectURL(file));
+      } else {
+        toast.error('Only video files are allowed.');
+      }
+    }
+  };
+
+  const handleReelLogoChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.type.startsWith('image/')) {
+        setReelLogoFile(file);
+        setReelLogoPreview(URL.createObjectURL(file));
+      } else {
+        toast.error('Only image files are allowed for the logo.');
+      }
+    }
+  };
+
+  const handleReelSubmit = async (e) => {
+    e.preventDefault();
+    if (!reelVideoFile) {
+      toast.error('Please select a video file.');
+      return;
+    }
+    if (!reelForm.courseName || !reelForm.trainerName || !reelForm.caption || !reelForm.audioTitle) {
+      toast.error('Please fill in all required fields.');
+      return;
+    }
+
+    setSubmittingReel(true);
+    try {
+      const formData = new FormData();
+      formData.append('video', reelVideoFile);
+      if (reelLogoFile) {
+        formData.append('logo', reelLogoFile);
+      }
+      formData.append('courseName', reelForm.courseName);
+      formData.append('trainerName', reelForm.trainerName);
+      formData.append('caption', reelForm.caption);
+      formData.append('audioTitle', reelForm.audioTitle);
+      formData.append('ctaText', reelForm.ctaText);
+      formData.append('isLive', String(reelForm.isLive));
+      formData.append('isActive', String(reelForm.isActive));
+
+      const result = await uploadReelApi(formData);
+      if (result.success || result.data) {
+        toast.success('Video Reel uploaded successfully!');
+        setReelVideoFile(null);
+        setReelLogoFile(null);
+        setReelVideoPreview(null);
+        setReelLogoPreview(null);
+        setReelForm({
+          courseName: '',
+          trainerName: '',
+          caption: '',
+          audioTitle: '',
+          ctaText: 'Register',
+          isLive: true,
+          isActive: true
+        });
+        loadReels();
+      } else {
+        toast.error('Failed to upload video reel.');
+      }
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to upload video reel'));
+    } finally {
+      setSubmittingReel(false);
+    }
+  };
+
+  const handleDeleteReel = async (id) => {
+    try {
+      await deleteReelApi(id);
+      toast.success('Video reel deleted successfully.');
+      setDeletingReelId(null);
+      loadReels();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete video reel'));
+    }
+  };
+
   // Delete Offer Handlers
   const handleDeleteOffer = async (id) => {
     try {
@@ -343,7 +468,7 @@ const OffersDashboardPage = () => {
       </div>
 
       {/* Main Form Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
         
         {/* Left Side: Create Offers Rule */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 space-y-6 flex flex-col justify-between">
@@ -632,6 +757,189 @@ const OffersDashboardPage = () => {
             </div>
           </div>
         </div>
+
+        {/* Upload Video Reel */}
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 space-y-6 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-xl bg-teal-50 text-teal-600">
+                <Film className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">Upload Video Reel</h2>
+            </div>
+            <p className="text-sm text-slate-500 mb-6">
+              Publish short vertical videos (9:16) for Python, SQL, React and other live courses.
+            </p>
+
+            <form onSubmit={handleReelSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Course Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Python Programming"
+                    value={reelForm.courseName}
+                    onChange={(e) => setReelForm(prev => ({ ...prev, courseName: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Trainer Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Praveen Kumar"
+                    value={reelForm.trainerName}
+                    onChange={(e) => setReelForm(prev => ({ ...prev, trainerName: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Reel Caption / Description
+                </label>
+                <textarea
+                  required
+                  rows="2"
+                  placeholder="Welcome to the future of AI coding... #Python #Coding"
+                  value={reelForm.caption}
+                  onChange={(e) => setReelForm(prev => ({ ...prev, caption: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10 transition-all resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Audio Title
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Original Audio - Python tutorial"
+                    value={reelForm.audioTitle}
+                    onChange={(e) => setReelForm(prev => ({ ...prev, audioTitle: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    CTA Action Label
+                  </label>
+                  <select
+                    value={reelForm.ctaText}
+                    onChange={(e) => setReelForm(prev => ({ ...prev, ctaText: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10 transition-all cursor-pointer"
+                  >
+                    <option value="Register">Register</option>
+                    <option value="Book Slot">Book Slot</option>
+                    <option value="Explore">Explore</option>
+                    <option value="Join Class">Join Class</option>
+                    <option value="Learn More">Learn More</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    id="reel-active"
+                    checked={reelForm.isActive}
+                    onChange={(e) => setReelForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                    className="rounded text-teal-600 focus:ring-teal-500 h-4 w-4"
+                  />
+                  <label htmlFor="reel-active" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                    Is Active
+                  </label>
+                </div>
+                <div className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    id="reel-live"
+                    checked={reelForm.isLive}
+                    onChange={(e) => setReelForm(prev => ({ ...prev, isLive: e.target.checked }))}
+                    className="rounded text-teal-600 focus:ring-teal-500 h-4 w-4"
+                  />
+                  <label htmlFor="reel-live" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                    Is Live Class
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 cursor-pointer">
+                    Choose Video
+                  </label>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleReelVideoChange}
+                    className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-extrabold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 cursor-pointer">
+                    Choose Icon/Logo
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleReelLogoChange}
+                    className="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-extrabold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submittingReel}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-teal-700 disabled:opacity-50 active:scale-95 mt-1"
+              >
+                {submittingReel ? 'Uploading Video...' : 'Upload Video Reel'}
+                <Video className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+
+          {/* Preview Reel Area */}
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Live Reel Upload Preview</h3>
+            <div className="relative rounded-2xl border border-slate-200 bg-slate-900 h-28 overflow-hidden shadow-inner flex items-center justify-between px-4 py-3 text-white">
+              {reelVideoPreview ? (
+                <>
+                  <div className="w-12 h-20 bg-black rounded-lg overflow-hidden border border-slate-700">
+                    <video src={reelVideoPreview} className="w-full h-full object-cover" muted />
+                  </div>
+                  <div className="flex-grow pl-4 pr-2 text-left space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      {reelLogoPreview && <img src={reelLogoPreview} alt="Logo" className="w-4 h-4 rounded-full bg-white object-contain" />}
+                      <span className="text-xs font-bold truncate max-w-[120px]">{reelForm.courseName || 'Course Name'}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-300 line-clamp-2">{reelForm.caption || 'Video caption details...'}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className="text-[9px] bg-teal-500 px-2 py-0.5 rounded font-extrabold uppercase">{reelForm.ctaText}</span>
+                    {reelForm.isLive && <span className="text-[8px] bg-red-600 px-1.5 py-0.5 rounded font-extrabold uppercase animate-pulse">LIVE</span>}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center w-full space-y-1">
+                  <Film className="w-8 h-8 mx-auto text-slate-700 animate-pulse" />
+                  <p className="text-xs font-bold text-slate-500">No video selected</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Lower Section: Active Rules Table */}
@@ -839,6 +1147,113 @@ const OffersDashboardPage = () => {
                           <button
                             type="button"
                             onClick={() => setDeletingPosterId(posterId)}
+                            className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Video Reels Grid */}
+      <section className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mt-8">
+        <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Uploaded Video Reels (Shorts)</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Manage vertical promo videos displayed on student endpoints.</p>
+          </div>
+          
+          <button 
+            type="button" 
+            onClick={loadReels}
+            disabled={loadingReels}
+            className="text-xs font-bold text-teal-600 hover:text-teal-700 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors border border-teal-100"
+          >
+            {loadingReels ? 'Refreshing...' : 'Sync Reels'}
+          </button>
+        </div>
+
+        <div className="p-6">
+          {loadingReels ? (
+            <div className="py-12 text-center text-slate-400 space-y-2 animate-pulse">
+              <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mx-auto"></div>
+              <p className="text-xs font-semibold">Loading video reels...</p>
+            </div>
+          ) : reels.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-12 text-center text-slate-400 space-y-2">
+              <Film className="w-8 h-8 mx-auto text-slate-300" />
+              <div>
+                <p className="text-sm font-bold text-slate-700">No reels uploaded</p>
+                <p className="text-xs text-slate-400">Upload a video reel on the right side above.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {reels.map((reel) => {
+                const reelId = reel.id || reel._id;
+                const videoUrl = resolveAssetUrl(reel.videoSrc);
+                const avatarUrl = resolveAssetUrl(reel.avatarUrl);
+                return (
+                  <div key={reelId} className="group relative rounded-2xl border border-slate-100 bg-slate-50/30 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                    <div className="relative aspect-[9/16] bg-black overflow-hidden max-h-[300px]">
+                      <video src={videoUrl} className="w-full h-full object-cover" controls muted />
+                      <div className="absolute top-2 right-2 flex flex-col gap-1.5 items-end">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide border ${
+                          reel.isActive 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
+                          {reel.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        {reel.isLive && (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase bg-red-600 text-white animate-pulse">
+                            Live Class
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 space-y-3 flex-grow flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          {avatarUrl && <img src={avatarUrl} alt="Logo" className="w-5 h-5 rounded-full object-contain bg-white border border-slate-200" />}
+                          <h4 className="font-bold text-slate-900 text-sm line-clamp-1">{reel.courseName}</h4>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500">Trainer: {reel.trainerName}</p>
+                        <p className="text-xs text-slate-600 line-clamp-2 italic">"{reel.caption}"</p>
+                        <p className="text-[10px] text-slate-400 font-mono">Sound: {reel.audioTitle}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100/50 mt-2">
+                        <span className="text-[10px] text-slate-400 font-medium">CTA: {reel.ctaText}</span>
+                        {deletingReelId === reelId ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReel(reelId)}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingReelId(null)}
+                              className="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingReelId(reelId)}
                             className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />

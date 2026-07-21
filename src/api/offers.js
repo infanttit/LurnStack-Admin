@@ -210,3 +210,19 @@ export const deletePosterApi = async (id) => {
   }
 };
 
+export const fetchReelsApi = async () => {
+  const response = await axiosClient.get('/api/admin/reels');
+  return response.data?.data || response.data || [];
+};
+
+export const uploadReelApi = async (formData) => {
+  const response = await axiosClient.post('/api/admin/reels', formData);
+  return response.data;
+};
+
+export const deleteReelApi = async (id) => {
+  const response = await axiosClient.delete(`/api/admin/reels/${encodeURIComponent(id)}`);
+  return response.data;
+};
+
+
